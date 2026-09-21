@@ -1,0 +1,6 @@
+{
+  "name": "WYSIWYG Cash Machine Slot",
+  "description": "A classic mechanical stepper WYSIWYG casino slot game inspired by Everi Cash Machine and Stake Engine math model.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
