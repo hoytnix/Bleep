@@ -47,7 +47,7 @@ export const BetModal: React.FC<BetModalProps> = ({
             SELECT BET LEVEL
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            Fixed 10 Credits Wagered Per Round
+            Choose your dollar wager and payout tier per spin
           </p>
         </div>
 
@@ -56,6 +56,13 @@ export const BetModal: React.FC<BetModalProps> = ({
           {denominations.map((denom) => {
             const config = BET_CONFIGS[denom];
             const isSelected = activeBet === denom;
+
+            const tierDescriptions: Record<Denomination, string> = {
+              1: 'Micro Stakes • 0.1x Payout Scale',
+              10: 'Standard Stakes • 1.0x Base Payout',
+              100: 'High Roller • 10.0x Payout Boost',
+              1000: 'VIP Max Bet • 100.0x Mega Payout',
+            };
 
             return (
               <button
@@ -73,27 +80,27 @@ export const BetModal: React.FC<BetModalProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm font-mono border ${
+                    className={`w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs sm:text-sm font-mono border ${
                       isSelected
                         ? 'bg-[#FFD700] text-black border-yellow-300'
                         : 'bg-black/60 text-yellow-400 border-yellow-500/30'
                     }`}
                   >
-                    ${denom}
+                    ${denom >= 1000 ? '1K' : denom}
                   </div>
                   <div>
                     <span className="text-sm font-black text-white block">
-                      ${denom}.00 Total Bet
+                      ${config.bet.toLocaleString()} Wager
                     </span>
                     <span className="text-xs text-slate-400 font-mono">
-                      Coin Value: ${config.coinValue.toFixed(2)} / Credit
+                      {tierDescriptions[denom]}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-yellow-400 font-mono">
-                    10 CR
+                    ${config.bet.toLocaleString()}
                   </span>
                   {isSelected && (
                     <div className="w-6 h-6 rounded-full bg-[#FFD700] flex items-center justify-center text-black">

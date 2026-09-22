@@ -21,5 +21,21 @@
 - [x] Renamed Wheel Bonus to "DUMMY JACKPOT!"
 - [x] Floated Stats + Rules + Sound Buttons to the Right Edge in Settings Bar
 - [x] Calibrated Spin Button Placement Centered in Credits Bar
+- [x] Fixed Unintended Bonus Wheel Trigger on Standard Button Spins (Strict Boolean Evaluation & Event Isolation)
+- [x] Dynamic Denomination Wager & Scaled Payout Engine (1 CR, 10 CR, 100 CR, 1,000 CR)
+- [x] Interactive Balance Refill Control on Low Credits
+- [x] Dynamic Denomination Selector & Display across BetModal, SettingsBar, CreditsBar, & StatsModal
+- [x] Dotted Graph Paper Aesthetic for Guide Book (`Handbook.tsx`)
+- [x] Hidden Stats & Rules Button Text on Mobile (`hidden sm:inline` in `SettingsBar.tsx`)
+- [x] Reel Blank Concatenation Handling & Disambiguation (`[ 5 — 0 ]` display and Rules explanation)
+- [x] Currency Rebrand from Credits/CR to $ across all HUD meters, modals, handbook, bonus wheel, and tooltips
+- [x] Removed Grey Backgrounds from Reels, Settings, and Amounts/Balances Sections
+- [x] Scaled Monte Carlo Simulation to 1,000,000 Rounds with 3-Run Average Verification in Stats
+- [x] 3-Mode Turbo System (Off / Turbo / Instant) with Smart Reel Skip on Miss and Dedicated Button Left of Stats
+- [x] Red-Spin Savior Mechanic (Split-digit near-miss trigger, procedural escalating siren audio, 500ms suspense pause, comic #FF0033 strobe hazard, dynamic red speed-line re-spin on Reel 2, and gap-bridging math calibrated to ~85.0% RTP)
+- [x] Multi-Reel Star Respin Enhancement (Re-spins empty reels among Reels 1-3 alongside Reel 4 while locking active numbers with purple neon aura, updated RGS math model, sequential stepper animation, dynamic handbook guide, rules, and test triggers)
+- [x] App Background Image Integration (`public/bg.jpeg` configured with object-cover, state overlays, and depth vignette)
+- [x] Netlify Deployment Hardening (`netlify.toml`, `public/_redirects`, explicit `publicDir`, `copyPublicDir`, and SPA rewrite rules)
+- [x] Resolved Race Condition: Red-Spin Savior Respin Sequenced Before Bonus Wheel (Deterministic stage pipeline, reliable near-miss savior chance trigger, combo test trigger in StatsModal and 'N' keyboard shortcut)
 - [x] Build Verification (`compile_applet` & `lint_applet` passed)
 - [x] Memory Bank Final Sync

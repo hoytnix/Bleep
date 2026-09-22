@@ -89,7 +89,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
       {isMobile ? (
         /* Mobile Thumb-Zone Layout: Stacked/compact meters on left, oversized button on right */
         <div className="flex items-center justify-between gap-3 bg-black/85 p-2.5 rounded-2xl border-2 border-yellow-500/50 shadow-2xl backdrop-blur-md">
-          {/* Meters Column in CREDITS */}
+          {/* Meters Column in $ */}
           <div className="flex flex-col gap-1.5 flex-1 min-w-0">
             {/* BALANCE Pill */}
             <div className="bg-black rounded-lg border-2 border-[#FFD700] px-3 py-1 flex items-center justify-between shadow-inner">
@@ -97,7 +97,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
                 BALANCE:
               </span>
               <span className="text-xs font-black text-yellow-400 font-mono">
-                {balanceCredits.toLocaleString()} CR
+                ${balanceCredits.toLocaleString()}
               </span>
             </div>
 
@@ -107,7 +107,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
                 WIN:
               </span>
               <span className={`text-xs font-black font-mono ${winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-yellow-400'}`}>
-                {winCredits.toLocaleString()} CR
+                ${winCredits.toLocaleString()}
               </span>
             </div>
 
@@ -117,7 +117,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
                 BET:
               </span>
               <span className="text-xs font-black text-yellow-400 font-mono">
-                {betCredits} CR
+                ${betCredits.toLocaleString()}
               </span>
             </div>
           </div>
@@ -138,7 +138,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
           </button>
         </div>
       ) : (
-        /* Desktop Landscape Command Bar: Horizontal 3 Pills + Spin Button (Credits) */
+        /* Desktop Landscape Command Bar: Horizontal 3 Pills + Spin Button ($) */
         <div className="flex items-center justify-center gap-4 py-1">
           {/* BALANCE Pill */}
           <div className="bg-black rounded-xl border-3 border-[#FFD700] px-6 py-2 flex items-center gap-3 shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
@@ -146,7 +146,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
               BALANCE:
             </span>
             <span className="text-lg font-black text-[#FFD700] font-mono tracking-tight">
-              {balanceCredits.toLocaleString()} CR
+              ${balanceCredits.toLocaleString()}
             </span>
           </div>
 
@@ -156,7 +156,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
               WIN:
             </span>
             <span className={`text-lg font-black font-mono tracking-tight ${winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'}`}>
-              {winCredits.toLocaleString()} CR
+              ${winCredits.toLocaleString()}
             </span>
           </div>
 
@@ -166,7 +166,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
               BET:
             </span>
             <span className="text-lg font-black text-[#FFD700] font-mono tracking-tight">
-              {betCredits} CR
+              ${betCredits.toLocaleString()}
             </span>
           </div>
 
@@ -174,7 +174,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
           <button
             type="button"
             disabled={isSpinning || balanceCredits < betCredits}
-            onClick={onSpin}
+            onClick={() => onSpin()}
             className={`w-16 h-16 rounded-full bg-white border-4 border-[#FFD700] flex items-center justify-center relative shadow-[0_4px_18px_rgba(255,215,0,0.5)] active:scale-95 transition-all ${
               isSpinning || balanceCredits < betCredits ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110 hover:shadow-[0_6px_22px_rgba(255,215,0,0.8)]'
             }`}

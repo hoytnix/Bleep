@@ -7,6 +7,7 @@ interface CreditsBarProps {
   isSpinning: boolean;
   isMobile: boolean;
   onSpin: () => void;
+  onRefill?: () => void;
 }
 
 export const CreditsBar: React.FC<CreditsBarProps> = ({
@@ -16,11 +17,12 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
   isSpinning,
   isMobile,
   onSpin,
+  onRefill,
 }) => {
   const isSpinDisabled = isSpinning || balanceCredits < betCredits;
 
   return (
-    <div className="w-full max-w-5xl h-full flex items-center justify-between px-2.5 sm:px-6 bg-[#0a0a0a]/95 rounded-2xl shadow-2xl backdrop-blur-md relative select-none">
+    <div className="w-full max-w-5xl h-full flex items-center justify-between px-2.5 sm:px-6 relative select-none">
       {/* Credit Meters (Left & Center) */}
       {isMobile ? (
         /* Mobile Portrait View: Dedicated clearance so spin button NEVER overlaps credits */
@@ -30,9 +32,20 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
             <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-mono shrink-0">
               BALANCE:
             </span>
-            <span className="text-xs sm:text-sm font-black text-[#FFD700] font-mono tracking-tight ml-1 truncate">
-              {balanceCredits.toLocaleString()} CR
-            </span>
+            <div className="flex items-center gap-1.5 ml-1 min-w-0">
+              <span className="text-xs sm:text-sm font-black text-[#FFD700] font-mono tracking-tight truncate">
+                ${balanceCredits.toLocaleString()}
+              </span>
+              {balanceCredits < betCredits && onRefill && (
+                <button
+                  type="button"
+                  onClick={onRefill}
+                  className="px-1.5 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-[9px] uppercase tracking-wider cursor-pointer animate-pulse"
+                >
+                  +REFILL
+                </button>
+              )}
+            </div>
           </div>
 
           {/* WIN */}
@@ -45,7 +58,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
-              {winCredits.toLocaleString()} CR
+              ${winCredits.toLocaleString()}
             </span>
           </div>
 
@@ -55,7 +68,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BET:
             </span>
             <span className="text-xs sm:text-sm font-black text-[#FFD700] font-mono tracking-tight ml-1 truncate">
-              {betCredits} CR
+              ${betCredits.toLocaleString()}
             </span>
           </div>
         </div>
@@ -68,8 +81,18 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BALANCE:
             </span>
             <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-mono tracking-tight">
-              {balanceCredits.toLocaleString()} CR
+              ${balanceCredits.toLocaleString()}
             </span>
+            {balanceCredits < betCredits && onRefill && (
+              <button
+                type="button"
+                onClick={onRefill}
+                className="px-2 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-xs uppercase tracking-wider cursor-pointer animate-pulse shadow-sm"
+                title="Refill +$2,500"
+              >
+                +REFILL
+              </button>
+            )}
           </div>
 
           {/* WIN Pill */}
@@ -82,7 +105,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
-              {winCredits.toLocaleString()} CR
+              ${winCredits.toLocaleString()}
             </span>
           </div>
 
@@ -92,7 +115,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BET:
             </span>
             <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-mono tracking-tight">
-              {betCredits} CR
+              ${betCredits.toLocaleString()}
             </span>
           </div>
         </div>
@@ -105,7 +128,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
       <button
         type="button"
         disabled={isSpinDisabled}
-        onClick={onSpin}
+        onClick={() => onSpin()}
         className={`absolute right-2 sm:right-5 md:right-8 top-1/2 -translate-y-1/2 z-30 w-[86px] h-[86px] sm:w-[110px] sm:h-[110px] md:w-[130px] md:h-[130px] lg:w-[140px] lg:h-[140px] aspect-square rounded-full bg-white border-4 sm:border-6 border-[#FFD700] flex items-center justify-center shadow-[0_6px_28px_rgba(255,215,0,0.75)] transition-all ${
           isSpinDisabled
             ? 'opacity-50 cursor-not-allowed'

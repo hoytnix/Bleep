@@ -1,13 +1,17 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import confetti from 'canvas-confetti';
-import { SpinResult, WheelWedge, WHEEL_WEDGES } from './math';
+import { SpinResult, WheelWedge, WHEEL_WEDGES, TurboMode } from './math';
 import { soundEngine } from './AudioEngine';
 
 export interface PixiSlotEngineEvents {
   onSpinStart?: () => void;
   onReelStop?: (reelIndex: number, symbol: string) => void;
-  onRespinStart?: () => void;
-  onRespinEnd?: (newBooster: string) => void;
+  onNearMissPause?: (initialStops: string[]) => void;
+  onRedSpinAlarm?: () => void;
+  onRedSpinBridged?: (stops: string[]) => void;
+  onRedSpinMissed?: (stops: string[]) => void;
+  onRespinStart?: (emptyReels: number[], lockedReels: number[]) => void;
+  onRespinEnd?: (result: SpinResult) => void;
   onWheelStart?: (wedge: WheelWedge) => void;
   onWheelTrigger?: (wedge: WheelWedge) => Promise<void>;
   onWheelEnd?: (wedge: WheelWedge) => void;
@@ -36,6 +40,9 @@ interface ReelView {
   isSpinning: boolean;
   isLocked: boolean;
   lockGlow: Graphics;
+  redStrobe: Graphics;
+  speedLines: Graphics;
+  isRedSpinning?: boolean;
 }
 
 export class PixiSlotEngine {
@@ -150,6 +157,16 @@ export class PixiSlotEngine {
       const border = new Graphics();
       reelBox.addChild(border);
 
+      // Red speed lines container inside reelBox
+      const speedLines = new Graphics();
+      speedLines.visible = false;
+      reelBox.addChild(speedLines);
+
+      // Red strobe border overlay for comic red alarm
+      const redStrobe = new Graphics();
+      redStrobe.visible = false;
+      reelBox.addChild(redStrobe);
+
       // Symbols (previous, current, next)
       const style = this.getSymbolTextStyle(isBooster, symbols[i]);
       const currentSymbolText = new Text({ text: '', style });
@@ -195,6 +212,9 @@ export class PixiSlotEngine {
         isSpinning: false,
         isLocked: false,
         lockGlow,
+        redStrobe,
+        speedLines,
+        isRedSpinning: false,
       };
 
       this.reels.push(reelView);
@@ -423,6 +443,10 @@ export class PixiSlotEngine {
       textNode.text = '';
       graphicNode.visible = true;
       this.drawRespinStar(graphicNode, cx, cy, radius);
+    } else if (!symbol || symbol === '' || symbol === 'BLANK') {
+      graphicNode.clear();
+      graphicNode.visible = false;
+      textNode.text = '';
     } else {
       graphicNode.clear();
       graphicNode.visible = false;
@@ -514,10 +538,7 @@ export class PixiSlotEngine {
           .roundRect(0, 0, reelWidth, reelHeight, 14)
           .fill({ color: 0xffffff });
 
-        // Subtle shaded bands at top & bottom
         const bandH = Math.max(24, Math.floor(reelHeight * 0.16));
-        reel.bg.rect(0, 0, reelWidth, bandH).fill({ color: 0xf1f5f9 });
-        reel.bg.rect(0, reelHeight - bandH, reelWidth, bandH).fill({ color: 0xf1f5f9 });
 
         // Yellow Border with thick black stroke
         reel.border
@@ -567,10 +588,33 @@ export class PixiSlotEngine {
   private update(ticker: { deltaTime: number }): void {
     const dt = ticker.deltaTime;
     const rh = this.activeReelHeight || (this.isMobile ? 140 : 260);
+    const rw = this.activeReelWidth || (this.isMobile ? 88 : 156);
 
     this.reels.forEach((reel) => {
       if (reel.isSpinning) {
         reel.offsetY += reel.blurSpeed * dt * 26;
+
+        // Render dynamic anime/comic red speed lines during Red-Spin Savior
+        if (reel.isRedSpinning) {
+          const g = reel.speedLines;
+          g.clear();
+          g.visible = true;
+          // 8 vertical comic speed streaks in #FF0033 and gold
+          for (let i = 0; i < 7; i++) {
+            const lx = Math.random() * rw;
+            const ly = Math.random() * (rh * 0.3);
+            const lineH = rh * (0.35 + Math.random() * 0.55);
+            const alpha = 0.4 + Math.random() * 0.55;
+            g.moveTo(lx, ly)
+              .lineTo(lx, ly + lineH)
+              .stroke({ width: 2.5 + Math.random() * 2, color: 0xff0033, alpha });
+          }
+          // High-contrast gold streaks
+          const goldX = Math.random() * rw;
+          g.moveTo(goldX, 0)
+            .lineTo(goldX, rh * 0.8)
+            .stroke({ width: 2, color: 0xffd700, alpha: 0.75 });
+        }
 
         if (reel.offsetY >= rh) {
           reel.offsetY = reel.offsetY % rh;
@@ -595,25 +639,181 @@ export class PixiSlotEngine {
   }
 
   /**
-   * Performs the full Spin Cycle with sequential stop timing and spring overshoot
+   * Performs the full Spin Cycle with sequential stop timing, spring overshoot, or turbo/instant modes
+   * - 'off' (normal): Sequential stops at 700ms, 1100ms, 1500ms, 1900ms
+   * - 'turbo': If Reel 1 misses (blank), reels 2 and 3 are skipped immediately; if Reel 1 hits, standard suspense progression
+   * - 'instant': Instantly skips all reels
    */
-  public async spin(spinResult: SpinResult): Promise<void> {
+  public async spin(spinResult: SpinResult, turboMode: TurboMode = 'off'): Promise<void> {
     if (this.isSpinning) return;
     this.isSpinning = true;
 
     this.events.onSpinStart?.();
 
-    // Reset lock glows
+    // Reset lock glows and red strobes
+    this.clearRedSpinStrobe();
     this.reels.forEach((r) => {
       r.isLocked = false;
       r.lockGlow.visible = false;
     });
 
+    // Handle RED-SPIN SAVIOR mechanic if triggered (salvaging split-digit near-misses)
+    if (spinResult.red_spin_triggered) {
+      // 1. Reels start spinning
+      this.reels.forEach((reel) => {
+        reel.isSpinning = true;
+        reel.blurSpeed = 1.0;
+        reel.offsetY = 0;
+        reel.symbolsContainer.position.y = 0;
+        const dummy = reel.isBooster
+          ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)]
+          : ['1', '2', '5', '10', '0', '00'][Math.floor(Math.random() * 6)];
+        reel.previousSymbol = dummy;
+        this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+      });
+
+      const initialR1 = spinResult.initial_stops[0];
+      const initialR2 = ''; // BLANK star stop on Reel 2
+      const initialR3 = spinResult.initial_stops[2];
+
+      // Sequential stops: Reel 1 -> Reel 2 -> Reel 3
+      const r1Delay = turboMode === 'instant' ? 120 : turboMode === 'turbo' ? 400 : 700;
+      const r2Delay = turboMode === 'instant' ? 120 : turboMode === 'turbo' ? 300 : 400;
+      const r3Delay = turboMode === 'instant' ? 120 : turboMode === 'turbo' ? 300 : 400;
+
+      await this.delay(r1Delay);
+      await this.stopReelWithSpring(0, initialR1);
+      this.events.onReelStop?.(0, initialR1);
+
+      await this.delay(r2Delay);
+      await this.stopReelWithSpring(1, initialR2);
+      this.events.onReelStop?.(1, initialR2);
+
+      await this.delay(r3Delay);
+      await this.stopReelWithSpring(2, initialR3);
+      this.events.onReelStop?.(2, initialR3);
+
+      // --- Stage 1: Near-Miss Pause ---
+      // Reels stop sequentially (1 -> 2 -> 3). Allow 500ms suspense pause while handbook displays: "Near Miss! Reel 2 Missed..."
+      this.events.onNearMissPause?.(spinResult.initial_stops);
+      await this.delay(turboMode === 'instant' ? 250 : 500);
+
+      // --- Stage 2: The Red-Spin Alarm ---
+      // Flash reel casing & background with urgent comic red strobe (#FF0033), play escalating mechanical siren
+      this.events.onRedSpinAlarm?.();
+      soundEngine.playRedSpinAlarm();
+      this.triggerRedSpinStrobe(1);
+      await this.delay(turboMode === 'instant' ? 250 : 500);
+
+      // --- Stage 3: Re-Spin Resolution ---
+      // Reel 2 blurs vertically with red speed lines and snaps into place on '0' or '5', bridging the gap
+      this.startReelRedSpin(1);
+      const respinDuration = turboMode === 'instant' ? 350 : turboMode === 'turbo' ? 500 : 900;
+      await this.delay(respinDuration);
+
+      const salvagedStop = spinResult.stops[1]; // '0' or '5'
+      await this.stopReelWithSpring(1, salvagedStop);
+      soundEngine.playRedSpinSnap();
+      this.stopReelRedSpin(1);
+
+      this.events.onRedSpinBridged?.(spinResult.stops);
+      await this.delay(turboMode === 'instant' ? 150 : 350);
+
+      // --- Stage 4: Resolve Reel 4 Multiplier ---
+      const finalBooster = spinResult.stops[3];
+      await this.stopReelWithSpring(3, finalBooster);
+      this.events.onReelStop?.(3, finalBooster);
+
+      await this.delay(300);
+      this.clearRedSpinStrobe();
+
+      // Check for booster impacts / special events on Reel 4
+      if (spinResult.isRespin && spinResult.respinNewStop) {
+        await this.delay(turboMode === 'turbo' ? 250 : 400);
+        await this.executePurpleRespin(spinResult, turboMode);
+      } else if (spinResult.isWheel && spinResult.wheelWedge) {
+        this.events.onWheelStart?.(spinResult.wheelWedge);
+        await this.delay(turboMode === 'turbo' ? 250 : 400);
+        if (this.events.onWheelTrigger) {
+          await this.events.onWheelTrigger(spinResult.wheelWedge);
+        }
+        this.events.onWheelEnd?.(spinResult.wheelWedge);
+      } else {
+        if (spinResult.creditsWon > 0) {
+          if (spinResult.multiplier > 1) {
+            soundEngine.playBoosterImpact('multiplier');
+          }
+          if (spinResult.creditsWon >= 100) {
+            this.triggerConfetti();
+            soundEngine.playJackpotFanfare();
+          }
+        }
+      }
+
+      await this.delay(60);
+      this.isSpinning = false;
+      this.events.onSpinComplete?.(spinResult);
+      return;
+    }
+
+    const initialStopsToLand = (spinResult.isRespin && spinResult.initial_stops)
+      ? spinResult.initial_stops
+      : spinResult.stops;
+
+    // Handle standard INSTANT mode
+    if (turboMode === 'instant') {
+      for (let i = 0; i < 4; i++) {
+        this.stopReelInstant(i, initialStopsToLand[i]);
+        this.events.onReelStop?.(i, initialStopsToLand[i]);
+      }
+
+      // Solenoid audio feedback for instant stop
+      soundEngine.playSolenoidClunk(0);
+      const boosterSymbol = initialStopsToLand[3];
+      if (boosterSymbol && ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'].includes(boosterSymbol)) {
+        if (boosterSymbol === 'RESPIN') {
+          soundEngine.playBoosterImpact('respin');
+        } else if (boosterSymbol === 'WHEEL') {
+          soundEngine.playBoosterImpact('wheel');
+        } else {
+          soundEngine.playBoosterImpact('multiplier');
+        }
+      }
+
+      // Check for special events
+      if (spinResult.isRespin && spinResult.respinNewStop) {
+        await this.delay(100);
+        await this.executePurpleRespin(spinResult, turboMode);
+      } else if (spinResult.isWheel && spinResult.wheelWedge) {
+        this.events.onWheelStart?.(spinResult.wheelWedge);
+        await this.delay(100);
+        if (this.events.onWheelTrigger) {
+          await this.events.onWheelTrigger(spinResult.wheelWedge);
+        }
+        this.events.onWheelEnd?.(spinResult.wheelWedge);
+      } else {
+        if (spinResult.creditsWon > 0) {
+          if (spinResult.multiplier > 1) {
+            soundEngine.playBoosterImpact('multiplier');
+          }
+          if (spinResult.creditsWon >= 100) {
+            this.triggerConfetti();
+            soundEngine.playJackpotFanfare();
+          }
+        }
+      }
+
+      await this.delay(60);
+      this.isSpinning = false;
+      this.events.onSpinComplete?.(spinResult);
+      return;
+    }
+
     // Start all 4 reels spinning
     this.reels.forEach((reel, idx) => {
       reel.isSpinning = true;
       reel.blurSpeed = 1.0;
-      reel.targetSymbol = spinResult.stops[idx];
+      reel.targetSymbol = initialStopsToLand[idx];
       reel.offsetY = 0;
       reel.symbolsContainer.position.y = 0;
 
@@ -625,22 +825,59 @@ export class PixiSlotEngine {
       this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
     });
 
-    // Sequential stop timings (Reel 1 at 700ms, Reel 2 at 1100ms, Reel 3 at 1500ms, Reel 4 at 1900ms)
-    const stopDelays = [700, 1100, 1500, 1900];
+    if (turboMode === 'turbo') {
+      // TURBO MODE: Reel 1 spins and stops first
+      await this.delay(450);
+      await this.stopReelWithSpring(0, initialStopsToLand[0]);
+      this.events.onReelStop?.(0, initialStopsToLand[0]);
 
-    for (let i = 0; i < 4; i++) {
-      await this.delay(stopDelays[i] - (i === 0 ? 0 : stopDelays[i - 1]));
-      await this.stopReelWithSpring(i, spinResult.stops[i]);
-      this.events.onReelStop?.(i, spinResult.stops[i]);
+      // Check if player missed the first reel (Reel 1 is blank)
+      const isReel1Miss = !initialStopsToLand[0] || initialStopsToLand[0] === '' || initialStopsToLand[0] === 'BLANK';
+
+      if (isReel1Miss) {
+        // Missed Reel 1! Instantly skip reels 2 & 3
+        this.stopReelInstant(1, initialStopsToLand[1]);
+        this.events.onReelStop?.(1, initialStopsToLand[1]);
+        this.stopReelInstant(2, initialStopsToLand[2]);
+        this.events.onReelStop?.(2, initialStopsToLand[2]);
+        soundEngine.playSolenoidClunk(1);
+
+        // Reel 4 drops in quickly right after
+        await this.delay(150);
+        await this.stopReelWithSpring(3, initialStopsToLand[3]);
+        this.events.onReelStop?.(3, initialStopsToLand[3]);
+      } else {
+        // Reel 1 was a HIT! Keep the win suspense alive across remaining reels
+        await this.delay(350);
+        await this.stopReelWithSpring(1, initialStopsToLand[1]);
+        this.events.onReelStop?.(1, initialStopsToLand[1]);
+
+        await this.delay(350);
+        await this.stopReelWithSpring(2, initialStopsToLand[2]);
+        this.events.onReelStop?.(2, initialStopsToLand[2]);
+
+        await this.delay(350);
+        await this.stopReelWithSpring(3, initialStopsToLand[3]);
+        this.events.onReelStop?.(3, initialStopsToLand[3]);
+      }
+    } else {
+      // NORMAL 'OFF' MODE: Sequential stop timings (Reel 1 at 700ms, Reel 2 at 1100ms, Reel 3 at 1500ms, Reel 4 at 1900ms)
+      const stopDelays = [700, 1100, 1500, 1900];
+
+      for (let i = 0; i < 4; i++) {
+        await this.delay(stopDelays[i] - (i === 0 ? 0 : stopDelays[i - 1]));
+        await this.stopReelWithSpring(i, initialStopsToLand[i]);
+        this.events.onReelStop?.(i, initialStopsToLand[i]);
+      }
     }
 
     // Check for special events
     if (spinResult.isRespin && spinResult.respinNewStop) {
-      await this.delay(400);
-      await this.executePurpleRespin(spinResult);
+      await this.delay(turboMode === 'turbo' ? 250 : 400);
+      await this.executePurpleRespin(spinResult, turboMode);
     } else if (spinResult.isWheel && spinResult.wheelWedge) {
       this.events.onWheelStart?.(spinResult.wheelWedge);
-      await this.delay(400);
+      await this.delay(turboMode === 'turbo' ? 250 : 400);
       if (this.events.onWheelTrigger) {
         await this.events.onWheelTrigger(spinResult.wheelWedge);
       }
@@ -659,6 +896,24 @@ export class PixiSlotEngine {
 
     this.isSpinning = false;
     this.events.onSpinComplete?.(spinResult);
+  }
+
+  /**
+   * Instantly stops a reel without spring oscillation (used for instant mode and skipping reels)
+   */
+  private stopReelInstant(reelIndex: number, finalSymbol: string): void {
+    const reel = this.reels[reelIndex];
+    if (!reel) return;
+
+    reel.isSpinning = false;
+    reel.symbolsContainer.position.y = 0;
+    reel.offsetY = 0;
+
+    reel.currentSymbol = finalSymbol;
+    this.renderReelSymbol(reel, finalSymbol, reel.currentSymbolText, reel.currentSymbolGraphic);
+    reel.previousSymbol = '';
+    this.renderReelSymbol(reel, '', reel.previousSymbolText, reel.previousSymbolGraphic);
+    reel.nextSymbolText.text = '';
   }
 
   /**
@@ -718,41 +973,143 @@ export class PixiSlotEngine {
 
   /**
    * Executes the Purple Respin Event
+   * Landing a Respin causes not only Reel 4 to respin, but any of the first three reels which are empty.
    */
-  private async executePurpleRespin(spinResult: SpinResult): Promise<void> {
-    this.events.onRespinStart?.();
+  private async executePurpleRespin(spinResult: SpinResult, turboMode: TurboMode = 'off'): Promise<void> {
+    const emptyReels = spinResult.respinEmptyReels || [];
+    const lockedReels = spinResult.respinLockedReels || [0, 1, 2].filter((i) => !emptyReels.includes(i));
+    const reelsToRespin = [...emptyReels, 3]; // Empty reels + Booster Reel 4
 
-    // Lock Reels 1-3 with Glowing Purple Neon Aura
-    for (let i = 0; i < 3; i++) {
-      this.reels[i].isLocked = true;
-      this.reels[i].lockGlow.visible = true;
-    }
+    this.events.onRespinStart?.(emptyReels, lockedReels);
+
+    // Lock non-empty reels among reels 1-3 with Glowing Purple Neon Aura
+    lockedReels.forEach((reelIdx) => {
+      this.reels[reelIdx].isLocked = true;
+      this.reels[reelIdx].lockGlow.visible = true;
+    });
 
     soundEngine.playBoosterImpact('respin');
-    await this.delay(700);
+    const prepDelay = turboMode === 'instant' ? 100 : turboMode === 'turbo' ? 350 : 650;
+    await this.delay(prepDelay);
 
-    // Respin Reel 4
-    const boosterReel = this.reels[3];
-    boosterReel.isSpinning = true;
-    boosterReel.blurSpeed = 1.6;
-    boosterReel.offsetY = 0;
-    boosterReel.symbolsContainer.position.y = 0;
-    const dummy = ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)];
-    boosterReel.previousSymbol = dummy;
-    this.renderReelSymbol(boosterReel, dummy, boosterReel.previousSymbolText, boosterReel.previousSymbolGraphic);
+    // Start all respinning reels spinning (empty reels + Reel 4)
+    reelsToRespin.forEach((reelIdx) => {
+      const reel = this.reels[reelIdx];
+      reel.isSpinning = true;
+      reel.blurSpeed = turboMode === 'instant' ? 2.5 : 1.5;
+      reel.offsetY = 0;
+      reel.symbolsContainer.position.y = 0;
 
-    // Spin for 1200ms then stop on upgraded multiplier
-    await this.delay(1200);
-    const newStop = spinResult.respinNewStop || '2X';
-    await this.stopReelWithSpring(3, newStop);
+      const dummy = reel.isBooster
+        ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)]
+        : ['1', '2', '5', '10', '0', '00'][Math.floor(Math.random() * 6)];
+      reel.previousSymbol = dummy;
+      this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+    });
 
-    soundEngine.playBoosterImpact('multiplier');
-    this.events.onRespinEnd?.(newStop);
+    // Spin duration & sequential stops
+    if (turboMode === 'instant') {
+      reelsToRespin.forEach((reelIdx) => {
+        const finalSym = spinResult.stops[reelIdx];
+        this.stopReelInstant(reelIdx, finalSym);
+        this.events.onReelStop?.(reelIdx, finalSym);
+      });
+      soundEngine.playBoosterImpact('multiplier');
+    } else if (turboMode === 'turbo') {
+      await this.delay(350);
+      for (const reelIdx of reelsToRespin) {
+        const finalSym = spinResult.stops[reelIdx];
+        await this.stopReelWithSpring(reelIdx, finalSym);
+        this.events.onReelStop?.(reelIdx, finalSym);
+        if (reelIdx !== 3) {
+          await this.delay(180);
+        }
+      }
+      soundEngine.playBoosterImpact('multiplier');
+    } else {
+      // Normal 'off' mode: suspenseful mechanical stepper sequential stopping
+      await this.delay(500);
+
+      // Sort reels in order (0, 1, 2, 3)
+      const sortedRespinReels = [...reelsToRespin].sort((a, b) => a - b);
+      for (let i = 0; i < sortedRespinReels.length; i++) {
+        const reelIdx = sortedRespinReels[i];
+        const finalSym = spinResult.stops[reelIdx];
+        await this.stopReelWithSpring(reelIdx, finalSym);
+        this.events.onReelStop?.(reelIdx, finalSym);
+        if (i < sortedRespinReels.length - 1) {
+          await this.delay(320);
+        }
+      }
+      soundEngine.playBoosterImpact('multiplier');
+    }
+
+    this.events.onRespinEnd?.(spinResult);
 
     if (spinResult.creditsWon >= 100) {
       this.triggerConfetti();
       soundEngine.playJackpotFanfare();
     }
+  }
+
+  /**
+   * Triggers the urgent comic red strobe (#FF0033) on Reel 2 and surrounding casing
+   */
+  public triggerRedSpinStrobe(reelIndex = 1): void {
+    const reel = this.reels[reelIndex];
+    if (!reel) return;
+
+    const rw = this.activeReelWidth || (this.isMobile ? 88 : 156);
+    const rh = this.activeReelHeight || Math.floor(rw * 1.62);
+
+    reel.redStrobe.clear();
+    reel.redStrobe.visible = true;
+
+    // Glowing comic red strobe border around Reel 2
+    reel.redStrobe
+      .roundRect(-8, -8, rw + 16, rh + 16, 20)
+      .stroke({ width: 8, color: 0xff0033, alpha: 0.95 });
+    reel.redStrobe
+      .roundRect(-2, -2, rw + 4, rh + 4, 16)
+      .stroke({ width: 4, color: 0xff3366, alpha: 0.8 });
+
+    // Flash strobe pulse
+    let flashCount = 0;
+    const interval = setInterval(() => {
+      flashCount++;
+      const show = flashCount % 2 === 1;
+      reel.redStrobe.visible = show;
+      if (flashCount >= 8) {
+        clearInterval(interval);
+        reel.redStrobe.visible = true;
+      }
+    }, 60);
+  }
+
+  public clearRedSpinStrobe(): void {
+    this.reels.forEach((r) => {
+      r.redStrobe.clear();
+      r.redStrobe.visible = false;
+      r.speedLines.clear();
+      r.speedLines.visible = false;
+      r.isRedSpinning = false;
+    });
+  }
+
+  public startReelRedSpin(reelIndex = 1): void {
+    const reel = this.reels[reelIndex];
+    if (!reel) return;
+    reel.isSpinning = true;
+    reel.isRedSpinning = true;
+    reel.blurSpeed = 1.8;
+  }
+
+  public stopReelRedSpin(reelIndex = 1): void {
+    const reel = this.reels[reelIndex];
+    if (!reel) return;
+    reel.isRedSpinning = false;
+    reel.speedLines.clear();
+    reel.speedLines.visible = false;
   }
 
   /**

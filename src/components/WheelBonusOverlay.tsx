@@ -105,7 +105,7 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
         ctx.restore();
       }
 
-      // Wedge Text (Credits amount)
+      // Wedge Text (Credits amount scaled by denomination coinValue)
       ctx.save();
       const midAngle = startAngle + arc / 2;
       ctx.rotate(midAngle + Math.PI / 2);
@@ -114,16 +114,18 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const isJackpot = wedge.credits >= 1000;
-      ctx.font = `900 ${isJackpot ? Math.max(14, Math.floor(radius * 0.1)) : Math.max(15, Math.floor(radius * 0.11))}px "Chakra Petch", "Space Grotesk", sans-serif`;
+      const displayCredits = Math.round(wedge.credits * (coinValue ?? 1));
+      const textStr = displayCredits >= 10000 ? `$${Math.round(displayCredits / 1000)}K` : `$${displayCredits}`;
+      const isJackpot = displayCredits >= 1000;
+      ctx.font = `900 ${isJackpot ? Math.max(13, Math.floor(radius * 0.095)) : Math.max(15, Math.floor(radius * 0.11))}px "Chakra Petch", "Space Grotesk", sans-serif`;
 
       // Text outline for comic punch
       ctx.lineWidth = 4;
       ctx.strokeStyle = idx === 19 ? '#ffd700' : '#0a0a0a';
-      ctx.strokeText(`${wedge.credits}`, 0, textY);
+      ctx.strokeText(textStr, 0, textY);
 
       ctx.fillStyle = idx === 19 ? '#0a0a0a' : '#ffffff';
-      ctx.fillText(`${wedge.credits}`, 0, textY);
+      ctx.fillText(textStr, 0, textY);
 
       ctx.restore();
 
@@ -449,7 +451,7 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
         </h1>
 
         <p className="text-xs sm:text-sm text-lime-400 font-black tracking-wide font-mono mt-0.5">
-          WIN UP TO 5,000 CREDITS!
+          WIN UP TO ${Math.round(5000 * (coinValue ?? 1)).toLocaleString()}!
         </p>
       </header>
 
@@ -502,12 +504,12 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
             </div>
 
             <div className="text-3xl sm:text-4xl font-black text-[#39FF14] font-mono tracking-tight my-0.5">
-              +{targetWedge.credits.toLocaleString()} CREDITS!
+              +${targetWedge.credits.toLocaleString()}!
             </div>
 
             {baseCredits > 0 && (
               <p className="text-xs text-slate-300 font-mono mb-2">
-                Reel Win: <span className="text-yellow-400 font-bold">{baseCredits} CR</span> + Wheel Prize: <span className="text-[#39FF14] font-bold">{targetWedge.credits} CR</span> = <strong className="text-white">{finalCreditsWon} CR Total!</strong>
+                Reel Win: <span className="text-yellow-400 font-bold">${baseCredits}</span> + Wheel Prize: <span className="text-[#39FF14] font-bold">${targetWedge.credits}</span> = <strong className="text-white">${finalCreditsWon} Total!</strong>
               </p>
             )}
 
@@ -518,7 +520,7 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
               className="w-full mt-1.5 py-3 rounded-xl bg-[#39FF14] hover:bg-lime-400 active:scale-98 text-black font-black text-sm uppercase tracking-wider cursor-pointer shadow-[0_4px_16px_rgba(57,255,20,0.5)] border-2 border-black transition-all flex items-center justify-center gap-2"
             >
               <CheckCircle className="w-5 h-5 text-black" />
-              COLLECT {finalCreditsWon.toLocaleString()} CREDITS! ({autoCollectCountdown}s)
+              COLLECT ${finalCreditsWon.toLocaleString()}! ({autoCollectCountdown}s)
             </button>
           </div>
         )}

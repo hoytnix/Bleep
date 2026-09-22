@@ -292,6 +292,93 @@ class SoundEngine {
       // AudioContext error handling
     }
   }
+
+  /**
+   * Escalating Mechanical Siren / Warning Buzzer for Red-Spin Savior
+   * Urgent comic klaxon with rising mechanical sweeps and staccato warning harmonics
+   */
+  public playRedSpinAlarm() {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+
+      // 3 ascending mechanical siren pulses
+      const pulses = [
+        { startF: 440, endF: 660, startT: 0, dur: 0.12 },
+        { startF: 580, endF: 880, startT: 0.13, dur: 0.13 },
+        { startF: 750, endF: 1200, startT: 0.27, dur: 0.22 },
+      ];
+
+      pulses.forEach((p) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(p.startF, now + p.startT);
+        osc.frequency.exponentialRampToValueAtTime(p.endF, now + p.startT + p.dur);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2400, now + p.startT);
+
+        gain.gain.setValueAtTime(0.32, now + p.startT);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + p.startT + p.dur);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + p.startT);
+        osc.stop(now + p.startT + p.dur);
+      });
+
+      // Warning buzzer undertone
+      const buzz = ctx.createOscillator();
+      const buzzGain = ctx.createGain();
+      buzz.type = 'square';
+      buzz.frequency.setValueAtTime(140, now);
+      buzz.frequency.setValueAtTime(175, now + 0.2);
+      buzzGain.gain.setValueAtTime(0.22, now);
+      buzzGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+
+      buzz.connect(buzzGain);
+      buzzGain.connect(ctx.destination);
+      buzz.start(now);
+      buzz.stop(now + 0.52);
+    } catch {
+      // AudioContext error handling
+    }
+  }
+
+  /**
+   * Crisp mechanical lock impact when Reel 2 snaps into place on salvaged digit
+   */
+  public playRedSpinSnap() {
+    if (this.isMuted) return;
+    this.playSolenoidClunk(1);
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(1320, now + 0.16);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } catch {
+      // AudioContext error handling
+    }
+  }
 }
 
 export const soundEngine = new SoundEngine();
