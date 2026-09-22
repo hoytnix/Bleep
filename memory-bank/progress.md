@@ -37,5 +37,13 @@
 - [x] App Background Image Integration (`public/bg.jpeg` configured with object-cover, state overlays, and depth vignette)
 - [x] Netlify Deployment Hardening (`netlify.toml`, `public/_redirects`, explicit `publicDir`, `copyPublicDir`, and SPA rewrite rules)
 - [x] Resolved Race Condition: Red-Spin Savior Respin Sequenced Before Bonus Wheel (Deterministic stage pipeline, reliable near-miss savior chance trigger, combo test trigger in StatsModal and 'N' keyboard shortcut)
+- [x] Calibrated Stop Weights & RTP Optimization (~84.5% - 85.0% RTP & ~21.4% Hit Frequency across 3,000,000 Monte Carlo runs)
+- [x] Bank Cheque / Federal Reserve MICR E-13B Typography Everywhere (Global CSS @theme, DOM wildcard cascade, PixiJS TextStyle, and Canvas 2D overlays)
+- [x] Regulatory Autoplay & Session Limits (Autoplay drawer with 10/25/50/100 spins, Stop on Bonus toggle, Loss & Win limits, responsive Stop button, and regulatory safeguards)
+- [x] Typography Split: Specialized `font-comic` (Fredoka/Nunito) for prose, manual guides, button labels, and modals; restricted `font-micr` strictly to reel symbols, bracket numeric values, and HUD meters
+- [x] Mobile Viewport Layout Tweaks: Increased vertical scale (44vh) and tailored aspect ratio (1.52) for reels in mobile portrait mode to eliminate dead space
+- [x] Icon-Only Button Refinements: Denomination button is strictly icon-only across all screen sizes/resolutions; Turbo and Auto buttons render as icon-only on mobile viewports
+- [x] Standardized Guide Book Blank Stop Display (`-` for all blank reels in "YOU LANDED:" readouts)
+- [x] 4th Reel Top & Bottom Star Aesthetic Harmonization (Removed border under top star and added matching bottom star)
 - [x] Build Verification (`compile_applet` & `lint_applet` passed)
 - [x] Memory Bank Final Sync

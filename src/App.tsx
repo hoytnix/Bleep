@@ -10,6 +10,9 @@ import { PaytableModal } from './components/PaytableModal';
 import { StatsModal } from './components/StatsModal';
 import { BetModal } from './components/BetModal';
 import { WheelBonusOverlay } from './components/WheelBonusOverlay';
+import { AutoplayDrawer, AutoplayConfig } from './components/AutoplayDrawer';
+
+const formatStop = (s?: string) => (!s || s === 'BLANK' || s === '—' || s === '-' ? '-' : s);
 
 export default function App() {
   // Credits-based meters (Dynamic Bet Credits based on selected denomination)
@@ -25,7 +28,18 @@ export default function App() {
   const [isPaytableOpen, setIsPaytableOpen] = useState<boolean>(false);
   const [isStatsOpen, setIsStatsOpen] = useState<boolean>(false);
   const [isBetModalOpen, setIsBetModalOpen] = useState<boolean>(false);
+  const [isAutoplayOpen, setIsAutoplayOpen] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // Autoplay State & Regulatory Session Limits
+  const [isAutoplayRunning, setIsAutoplayRunning] = useState<boolean>(false);
+  const [autoplaySpinsRemaining, setAutoplaySpinsRemaining] = useState<number>(0);
+
+  const autoplayRunningRef = useRef<boolean>(false);
+  const autoplayConfigRef = useRef<AutoplayConfig | null>(null);
+  const autoplaySpinsRemainingRef = useRef<number>(0);
+  const autoplayStartBalanceRef = useRef<number>(5000);
+  const autoplayTimeoutRef = useRef<number | null>(null);
 
   // Turbo Mode: 'off' (normal), 'turbo' (skips reels 2 & 3 on miss), 'instant' (instantly skips all reels)
   const [turboMode, setTurboMode] = useState<TurboMode>(() => {
@@ -79,6 +93,30 @@ export default function App() {
   const handleRefillBalance = useCallback(() => {
     soundEngine.playButtonPress();
     setBalanceCredits((prev) => prev + 2500);
+  }, []);
+
+  // Stop Autoplay
+  const handleStopAutoplay = useCallback((reason?: string) => {
+    if (autoplayTimeoutRef.current !== null) {
+      clearTimeout(autoplayTimeoutRef.current);
+      autoplayTimeoutRef.current = null;
+    }
+    autoplayRunningRef.current = false;
+    setIsAutoplayRunning(false);
+    setAutoplaySpinsRemaining(0);
+    autoplayConfigRef.current = null;
+
+    if (reason) {
+      soundEngine.playSolenoidClunk(0);
+      setHandbookState({
+        mode: 'IDLE',
+        leftLine1: 'AUTOPLAY STOPPED',
+        leftLine2: reason.length > 20 ? 'Limit Reached' : reason,
+        leftValue: '[ AUTO ]',
+        rightLine1: 'Autoplay Stopped:',
+        rightLine2: reason,
+      });
+    }
   }, []);
 
   // Update idle handbook text when bet changes
@@ -145,7 +183,12 @@ export default function App() {
       const isForcedRedSpin = forceRedSpin === true;
       const isForcedRespin = forceRespin === true;
       const isForcedNearMissWheel = forceNearMissWheel === true;
-      if (isSpinning || activeWheelBonus || balanceCredits < betCredits || !engineRef.current) return;
+      if (isSpinning || activeWheelBonus || balanceCredits < betCredits || !engineRef.current) {
+        if (balanceCredits < betCredits && autoplayRunningRef.current) {
+          handleStopAutoplay('Insufficient balance to spin');
+        }
+        return;
+      }
 
       soundEngine.playButtonPress();
       setIsSpinning(true);
@@ -153,18 +196,32 @@ export default function App() {
       setIsRedSpinActive(false);
 
       // Deduct bet Credits from balance
-      setBalanceCredits((prev) => Math.max(0, prev - betCredits));
+      const newDeductedBalance = Math.max(0, balanceCredits - betCredits);
+      setBalanceCredits(newDeductedBalance);
       setDisplayedWinCredits(0);
 
-      // Update handbook to spinning
-      setHandbookState({
-        mode: 'IDLE',
-        leftLine1: 'Spinning...',
-        leftLine2: 'Good Luck!',
-        leftValue: '[ ? ? ? ]',
-        rightLine1: 'Win What You See',
-        rightLine2: `Bet: $${betCredits.toLocaleString()}`,
-      });
+      // Update handbook to spinning (with autoplay count if active)
+      if (autoplayRunningRef.current && autoplayConfigRef.current) {
+        const total = autoplayConfigRef.current.totalSpins;
+        const currentSpinNumber = total - autoplaySpinsRemainingRef.current + 1;
+        setHandbookState({
+          mode: 'IDLE',
+          leftLine1: `AUTO SPIN ${currentSpinNumber}/${total}`,
+          leftLine2: 'Good Luck!',
+          leftValue: '[ ? ? ? ]',
+          rightLine1: 'Win What You See',
+          rightLine2: `Bet: $${betCredits.toLocaleString()}`,
+        });
+      } else {
+        setHandbookState({
+          mode: 'IDLE',
+          leftLine1: 'Spinning...',
+          leftLine2: 'Good Luck!',
+          leftValue: '[ ? ? ? ]',
+          rightLine1: 'Win What You See',
+          rightLine2: `Bet: $${betCredits.toLocaleString()}`,
+        });
+      }
 
       // Generate outcome from Stake RGS Math Model (or forced triggers for verification)
       let result: SpinResult;
@@ -185,6 +242,9 @@ export default function App() {
       // Execute animation in PixiSlotEngine (with active turboMode)
       await engineRef.current.spin(result, turboMode);
 
+      // Final balance after won credits
+      const finalRoundBalance = newDeductedBalance + result.creditsWon;
+
       // Process final round outcome in Credits
       if (result.creditsWon > 0) {
         setBalanceCredits((prev) => prev + result.creditsWon);
@@ -200,8 +260,11 @@ export default function App() {
             rightLine2: result.baseCredits > 0 ? `Reel ($${result.baseCredits}) + Wheel!` : 'Huge Bonus Win!',
           });
         } else {
-          const displayStops = result.stops.slice(0, 3).map((s) => s || '—').join(' ');
-          const isBlankInterrupted = result.stops[0] !== '' && result.stops[1] === '' && result.stops[2] !== '';
+          const displayStops = result.stops.slice(0, 3).map(formatStop).join(' ');
+          const isBlankR1 = !result.stops[0] || result.stops[0] === 'BLANK';
+          const isBlankR2 = !result.stops[1] || result.stops[1] === 'BLANK';
+          const isBlankR3 = !result.stops[2] || result.stops[2] === 'BLANK';
+          const isBlankInterrupted = !isBlankR1 && isBlankR2 && !isBlankR3;
           setHandbookState({
             mode: 'WIN',
             leftLine1: 'You Landed:',
@@ -216,13 +279,14 @@ export default function App() {
           });
         }
       } else {
-        const displayStops = result.stops.slice(0, 3).map((s) => s || '—').join(' ');
+        const displayStops = result.stops.slice(0, 3).map(formatStop).join(' ');
+        const isBlankR1 = !result.stops[0] || result.stops[0] === 'BLANK';
         setHandbookState({
           mode: 'IDLE',
           leftLine1: 'No Line Win',
           leftLine2: 'Try Again!',
           leftValue: `[ ${displayStops} ]`,
-          rightLine1: result.stops[0] === '' ? 'First Reel Blank' : 'No Line Win',
+          rightLine1: isBlankR1 ? 'First Reel Blank' : 'No Line Win',
           rightLine2: 'Needs active digit on Reel 1',
         });
       }
@@ -231,8 +295,119 @@ export default function App() {
       setIsRespinActive(false);
       setIsRedSpinActive(false);
       activeSpinResultRef.current = null;
+
+      // -------------------------------------------------------------
+      // Autoplay Regulatory Session Limits & Lifecycle Processing
+      // -------------------------------------------------------------
+      if (autoplayRunningRef.current && autoplayConfigRef.current) {
+        const config = autoplayConfigRef.current;
+
+        // Condition 1: Out of funds for subsequent spin
+        if (finalRoundBalance < betCredits) {
+          handleStopAutoplay('Insufficient balance for next spin');
+          return;
+        }
+
+        // Condition 2: Stop on Bonus (Standard Casino Requirement)
+        const isBonusTriggered =
+          result.isWheel ||
+          result.isRespin ||
+          result.red_spin_triggered ||
+          (result.salvaged_reel !== undefined && result.salvaged_reel !== null);
+
+        if (config.stopOnBonus && isBonusTriggered) {
+          const bonusName = result.isWheel
+            ? 'Bonus Wheel Feature'
+            : result.isRespin
+            ? 'Star Respin Feature'
+            : 'Red-Spin Savior Feature';
+          handleStopAutoplay(`Stopped on ${bonusName}`);
+          return;
+        }
+
+        // Condition 3: Loss Limit (Standard Casino Requirement)
+        if (config.lossLimit !== null && config.lossLimit !== undefined) {
+          const netLoss = autoplayStartBalanceRef.current - finalRoundBalance;
+          if (netLoss >= config.lossLimit) {
+            handleStopAutoplay(`Loss limit of $${config.lossLimit.toLocaleString()} reached`);
+            return;
+          }
+        }
+
+        // Condition 4: Single Win Limit (Optional Regulatory Safeguard)
+        if (config.singleWinLimit !== null && config.singleWinLimit !== undefined) {
+          if (result.creditsWon >= config.singleWinLimit) {
+            handleStopAutoplay(
+              `Single win limit of $${config.singleWinLimit.toLocaleString()} reached (Won $${result.creditsWon})`
+            );
+            return;
+          }
+        }
+
+        // Condition 5: Decrement remaining spins & check completion
+        const remaining = autoplaySpinsRemainingRef.current - 1;
+        autoplaySpinsRemainingRef.current = remaining;
+        setAutoplaySpinsRemaining(remaining);
+
+        if (remaining <= 0) {
+          handleStopAutoplay('Completed all autoplay spins');
+          return;
+        }
+
+        // Schedule next autoplay round based on spin cadence / win ticker
+        const nextDelay =
+          turboMode === 'instant'
+            ? 200
+            : turboMode === 'turbo'
+            ? (result.creditsWon > 0 ? 550 : 350)
+            : (result.creditsWon > 0 ? 1100 : 700);
+
+        autoplayTimeoutRef.current = window.setTimeout(() => {
+          if (autoplayRunningRef.current) {
+            handleSpin(false);
+          }
+        }, nextDelay);
+      }
     },
-    [isSpinning, activeWheelBonus, balanceCredits, betCredits, betDenom, animateWinTicker, turboMode]
+    [
+      isSpinning,
+      activeWheelBonus,
+      balanceCredits,
+      betCredits,
+      betDenom,
+      animateWinTicker,
+      turboMode,
+      handleStopAutoplay,
+    ]
+  );
+
+  // Start Autoplay Handler
+  const handleStartAutoplay = useCallback(
+    (config: AutoplayConfig) => {
+      if (balanceCredits < betCredits || isSpinning) return;
+      soundEngine.playButtonPress();
+
+      if (autoplayTimeoutRef.current !== null) {
+        clearTimeout(autoplayTimeoutRef.current);
+        autoplayTimeoutRef.current = null;
+      }
+
+      autoplayConfigRef.current = config;
+      autoplayRunningRef.current = true;
+      autoplaySpinsRemainingRef.current = config.totalSpins;
+      autoplayStartBalanceRef.current = balanceCredits;
+
+      setIsAutoplayRunning(true);
+      setAutoplaySpinsRemaining(config.totalSpins);
+
+      // Trigger first autoplay spin
+      setTimeout(() => {
+        if (autoplayRunningRef.current) {
+          handleSpin(false);
+        }
+      }, 80);
+    },
+    [balanceCredits, betCredits, isSpinning, handleSpin]
   );
 
   // Wheel Bonus Completion Handler
@@ -246,12 +421,12 @@ export default function App() {
   // Denomination Switcher
   const handleSelectDenom = useCallback(
     (newDenom: Denomination) => {
-      if (isSpinning) return;
+      if (isSpinning || isAutoplayRunning) return;
       soundEngine.playButtonPress();
       setBetDenom(newDenom);
       updateIdleHandbook(newDenom);
     },
-    [isSpinning, updateIdleHandbook]
+    [isSpinning, isAutoplayRunning, updateIdleHandbook]
   );
 
   // Sound Toggle
@@ -271,7 +446,7 @@ export default function App() {
           mode: 'NEAR_MISS',
           leftLine1: 'NEAR MISS!',
           leftLine2: 'Reel 2 Missed...',
-          leftValue: `[ ${initialStops[0]} — ${initialStops[2]} ]`,
+          leftValue: `[ ${formatStop(initialStops[0])} - ${formatStop(initialStops[2])} ]`,
           rightLine1: 'Near Miss!',
           rightLine2: 'Reel 2 Missed...',
         });
@@ -292,7 +467,7 @@ export default function App() {
           mode: 'RED_SPIN',
           leftLine1: 'GAP BRIDGED!',
           leftLine2: 'Savior Success!',
-          leftValue: `[ ${stops[0]} ${stops[1]} ${stops[2]} ]`,
+          leftValue: `[ ${formatStop(stops[0])} ${formatStop(stops[1])} ${formatStop(stops[2])} ]`,
           rightLine1: `Formed ${stops[0]}${stops[1]}${stops[2]}!`,
           rightLine2: 'Resolving Booster...',
         });
@@ -302,7 +477,7 @@ export default function App() {
           mode: 'RED_SPIN',
           leftLine1: 'SAVIOR MISSED',
           leftLine2: 'Gap Not Bridged',
-          leftValue: `[ ${stops[0]} — ${stops[2]} ]`,
+          leftValue: `[ ${formatStop(stops[0])} - ${formatStop(stops[2])} ]`,
           rightLine1: 'Savior Missed',
           rightLine2: 'Resolving Booster...',
         });
@@ -321,7 +496,7 @@ export default function App() {
         });
       },
       onRespinEnd: (result) => {
-        const displayStops = result.stops.slice(0, 3).map((s) => s || '—').join(' ');
+        const displayStops = result.stops.slice(0, 3).map(formatStop).join(' ');
         setHandbookState({
           mode: 'RESPIN',
           leftLine1: 'RESPIN COMPLETE!',
@@ -391,12 +566,15 @@ export default function App() {
     return () => {
       window.removeEventListener('resize', checkMobile);
       resizeObserver.disconnect();
+      if (autoplayTimeoutRef.current !== null) {
+        clearTimeout(autoplayTimeoutRef.current);
+      }
       engine.destroy();
       engineRef.current = null;
     };
   }, []);
 
-  // Keyboard Shortcuts (Space/Enter: Spin, W: Test Wheel, 1-4: Denominations, M: Mute, P: Paytable, B: Bet)
+  // Keyboard Shortcuts (Space/Enter: Spin/Stop, A: Autoplay Drawer/Stop, W: Test Wheel, 1-4: Denominations, M: Mute, P: Paytable, B: Bet)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -404,7 +582,23 @@ export default function App() {
 
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault();
-        handleSpin();
+        if (autoplayRunningRef.current) {
+          handleStopAutoplay('Manually stopped by player (Space/Enter)');
+        } else {
+          handleSpin();
+        }
+      } else if (e.key === 'Escape') {
+        if (autoplayRunningRef.current) {
+          e.preventDefault();
+          handleStopAutoplay('Manually stopped by player (Escape)');
+        }
+      } else if (e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        if (autoplayRunningRef.current) {
+          handleStopAutoplay('Manually stopped by player');
+        } else {
+          setIsAutoplayOpen((prev) => !prev);
+        }
       } else if (e.key.toLowerCase() === 'w') {
         e.preventDefault();
         handleSpin(true);
@@ -438,22 +632,29 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSpin, handleSelectDenom, handleToggleMute, handleCycleTurbo, activeWheelBonus]);
+  }, [
+    handleSpin,
+    handleSelectDenom,
+    handleToggleMute,
+    handleCycleTurbo,
+    handleStopAutoplay,
+    activeWheelBonus,
+  ]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden flex flex-col items-center justify-between font-sans bg-[#04120b] select-none text-white">
       {/* App Background Image & Mood Layer */}
       <CurrencyBackdrop isRespin={isRespinActive} isRedSpin={isRedSpinActive} />
 
-      {/* Main Arcade Frame: 4 equal 25% height sections */}
+      {/* Main Arcade Frame: 4 sections */}
       <main className="relative z-10 w-full h-screen max-w-6xl mx-auto flex flex-col justify-between overflow-hidden">
-        {/* Section 1: Call-out at top (25% tall) */}
-        <header className="h-[25vh] w-full flex items-center justify-center px-2 sm:px-4 py-1.5 relative z-10">
+        {/* Section 1: Call-out at top (20vh on mobile, 25vh on desktop) */}
+        <header className="h-[20vh] sm:h-[22vh] md:h-[25vh] w-full flex items-center justify-center px-2 sm:px-4 py-1 sm:py-1.5 relative z-10">
           <Handbook state={handbookState} isMobile={isMobile} />
         </header>
 
-        {/* Section 2: Reels (37.5% tall - taller reels) */}
-        <section className="h-[37.5vh] w-full flex items-center justify-center px-2 sm:px-4 py-1 relative z-10">
+        {/* Section 2: Reels (44vh on mobile, 37.5vh on desktop - prominent center section) */}
+        <section className="h-[44vh] sm:h-[42vh] md:h-[37.5vh] w-full flex items-center justify-center px-1 sm:px-4 py-0.5 sm:py-1 relative z-10">
           <div className="w-full h-full max-w-5xl relative flex items-center justify-center">
             {/* Pixi Canvas Mounting Container */}
             <div
@@ -463,15 +664,19 @@ export default function App() {
           </div>
         </section>
 
-        {/* Section 3: Settings (12.5% tall - half previous height) */}
-        <section className="h-[12.5vh] w-full flex items-center justify-center px-2 sm:px-4 py-1 relative z-10">
+        {/* Section 3: Settings (11vh on mobile, 12.5vh on desktop - with Turbo, Autoplay, Stats, Rules, Sound) */}
+        <section className="h-[11vh] sm:h-[12vh] md:h-[12.5vh] w-full flex items-center justify-center px-2 sm:px-4 py-0.5 sm:py-1 relative z-10">
           <SettingsBar
             activeDenom={betDenom}
             isSpinning={isSpinning}
             isMuted={isMuted}
             isMobile={isMobile}
             turboMode={turboMode}
+            isAutoplayRunning={isAutoplayRunning}
+            autoplaySpinsRemaining={autoplaySpinsRemaining}
             onCycleTurbo={handleCycleTurbo}
+            onOpenAutoplay={() => setIsAutoplayOpen(true)}
+            onStopAutoplay={() => handleStopAutoplay('Manually stopped by player')}
             onSelectDenom={handleSelectDenom}
             onToggleMute={handleToggleMute}
             onOpenPaytable={() => setIsPaytableOpen(true)}
@@ -480,19 +685,31 @@ export default function App() {
           />
         </section>
 
-        {/* Section 4: Credits (25% tall) with centered Spin button */}
-        <footer className="h-[25vh] w-full flex items-center justify-center px-2 sm:px-4 py-1.5 relative z-20">
+        {/* Section 4: Credits (25vh) with centered Spin / Stop button */}
+        <footer className="h-[25vh] sm:h-[24vh] md:h-[25vh] w-full flex items-center justify-center px-2 sm:px-4 py-1 sm:py-1.5 relative z-20">
           <CreditsBar
             balanceCredits={balanceCredits}
             winCredits={displayedWinCredits}
             betCredits={betCredits}
             isSpinning={isSpinning}
             isMobile={isMobile}
+            isAutoplayRunning={isAutoplayRunning}
+            autoplaySpinsRemaining={autoplaySpinsRemaining}
             onSpin={() => handleSpin(false)}
+            onStopAutoplay={() => handleStopAutoplay('Manually stopped by player')}
             onRefill={handleRefillBalance}
           />
         </footer>
       </main>
+
+      {/* Autoplay & Responsible Session Limits Drawer */}
+      <AutoplayDrawer
+        isOpen={isAutoplayOpen}
+        activeDenom={betDenom}
+        balanceCredits={balanceCredits}
+        onClose={() => setIsAutoplayOpen(false)}
+        onStartAutoplay={handleStartAutoplay}
+      />
 
       {/* Bet Denomination Modal */}
       <BetModal

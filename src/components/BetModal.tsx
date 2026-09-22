@@ -39,20 +39,20 @@ export const BetModal: React.FC<BetModalProps> = ({
         </button>
 
         {/* Header */}
-        <div className="text-center mb-5">
+        <div className="text-center mb-5 font-comic">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#FFD700]/20 border-2 border-[#FFD700] text-yellow-400 mb-2">
             <Coins className="w-6 h-6" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-[#FFD700] tracking-tight font-serif">
+          <h2 className="text-xl sm:text-2xl font-black text-[#FFD700] tracking-tight font-comic">
             SELECT BET LEVEL
           </h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-slate-300 mt-1 font-comic">
             Choose your dollar wager and payout tier per spin
           </p>
         </div>
 
         {/* Denomination Cards */}
-        <div className="grid grid-cols-1 gap-2.5 mb-5">
+        <div className="grid grid-cols-1 gap-2.5 mb-5 font-comic">
           {denominations.map((denom) => {
             const config = BET_CONFIGS[denom];
             const isSelected = activeBet === denom;
@@ -80,7 +80,7 @@ export const BetModal: React.FC<BetModalProps> = ({
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs sm:text-sm font-mono border ${
+                    className={`w-12 h-10 rounded-lg flex items-center justify-center font-black text-xs sm:text-sm font-micr border ${
                       isSelected
                         ? 'bg-[#FFD700] text-black border-yellow-300'
                         : 'bg-black/60 text-yellow-400 border-yellow-500/30'
@@ -89,17 +89,17 @@ export const BetModal: React.FC<BetModalProps> = ({
                     ${denom >= 1000 ? '1K' : denom}
                   </div>
                   <div>
-                    <span className="text-sm font-black text-white block">
-                      ${config.bet.toLocaleString()} Wager
+                    <span className="text-sm font-black text-white block font-comic">
+                      <span className="font-micr">${config.bet.toLocaleString()}</span> Wager
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-slate-400 font-comic">
                       {tierDescriptions[denom]}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-yellow-400 font-mono">
+                  <span className="text-xs font-bold text-yellow-400 font-micr">
                     ${config.bet.toLocaleString()}
                   </span>
                   {isSelected && (
@@ -113,8 +113,8 @@ export const BetModal: React.FC<BetModalProps> = ({
           })}
         </div>
 
-        <div className="text-center text-[11px] text-slate-400">
-          Tip: You can also use keyboard keys <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-yellow-400">1</kbd>–<kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-yellow-400">4</kbd> to quick-switch!
+        <div className="text-center text-[11px] text-slate-400 font-comic">
+          Tip: You can also use keyboard keys <kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-yellow-400 font-comic font-bold">1</kbd>–<kbd className="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-yellow-400 font-comic font-bold">4</kbd> to quick-switch!
         </div>
       </div>
     </div>

@@ -28,46 +28,50 @@ export interface WeightedItem<T> {
   weight: number;
 }
 
+// REEL 1 (Weight: 1000) - Controls base hit rate (~21.0%)
 export const REEL_1_WEIGHTS: WeightedItem<string>[] = [
-  { symbol: '', weight: 780 },
-  { symbol: '1', weight: 135 },
-  { symbol: '2', weight: 55 },
-  { symbol: '5', weight: 22 },
-  { symbol: '10', weight: 8 },
+  { symbol: '', weight: 790 },
+  { symbol: '1', weight: 130 },
+  { symbol: '2', weight: 52 },
+  { symbol: '5', weight: 21 },
+  { symbol: '10', weight: 7 },
 ];
 
+// REEL 2 (Weight: 1000) - Calibrated to prevent 3-digit inflation
 export const REEL_2_WEIGHTS: WeightedItem<string>[] = [
-  { symbol: '', weight: 753 },
-  { symbol: '0', weight: 185 },
-  { symbol: '5', weight: 50 },
-  { symbol: '00', weight: 12 },
+  { symbol: '', weight: 790 },
+  { symbol: '0', weight: 158 },
+  { symbol: '5', weight: 44 },
+  { symbol: '00', weight: 8 },
 ];
 
+// REEL 3 (Weight: 1000) - Tail digits
 export const REEL_3_WEIGHTS: WeightedItem<string>[] = [
-  { symbol: '', weight: 850 },
-  { symbol: '0', weight: 110 },
-  { symbol: '5', weight: 40 },
+  { symbol: '', weight: 882 },
+  { symbol: '0', weight: 90 },
+  { symbol: '5', weight: 28 },
 ];
 
+// REEL 4: BOOSTER (Weight: 1000) - Multipliers, Respin, Wheel (~ 1 in 250 spins)
 export const REEL_4_WEIGHTS: WeightedItem<string>[] = [
-  { symbol: '', weight: 835 },
-  { symbol: '2X', weight: 95 },
-  { symbol: '3X', weight: 40 },
-  { symbol: '5X', weight: 15 },
+  { symbol: '', weight: 845 },
+  { symbol: '2X', weight: 90 },
+  { symbol: '3X', weight: 38 },
+  { symbol: '5X', weight: 14 },
   { symbol: '10X', weight: 5 },
-  { symbol: 'RESPIN', weight: 5 },
-  { symbol: 'WHEEL', weight: 5 },
+  { symbol: 'RESPIN', weight: 4 },
+  { symbol: 'WHEEL', weight: 4 },
 ];
 
 // Respin Reel 4 guaranteed stop weights (when RESPIN is triggered)
 export const RESPIN_BOOSTER_WEIGHTS: WeightedItem<string>[] = [
-  { symbol: '2X', weight: 450 },
-  { symbol: '3X', weight: 350 },
-  { symbol: '5X', weight: 150 },
-  { symbol: '10X', weight: 50 },
+  { symbol: '2X', weight: 700 },
+  { symbol: '3X', weight: 200 },
+  { symbol: '5X', weight: 80 },
+  { symbol: '10X', weight: 20 },
 ];
 
-// 20 Wheel Wedges (Calibrated distribution: avg 645 credits = 64.5x bet)
+// 20 Wheel Wedges (Calibrated distribution: 6x100, 5x150, 4x250, 3x400, 1x750, 1x2500)
 export interface WheelWedge {
   index: number;
   credits: number;
@@ -76,9 +80,8 @@ export interface WheelWedge {
 }
 
 export const WHEEL_WEDGES_DATA: number[] = [
-  // 20 wedges: 5x100, 5x200, 4x350, 3x500, 1x1000, 1x2500, 1x5000
-  100, 200, 350, 100, 500, 200, 350, 1000, 200, 100,
-  500, 200, 350, 100, 2500, 200, 350, 100, 500, 5000,
+  100, 150, 250, 100, 400, 150, 250, 750, 150, 100,
+  400, 150, 250, 100, 2500, 150, 250, 100, 400, 100,
 ];
 
 // Wedge styling palette for the cartoon wheel
@@ -189,10 +192,10 @@ export function parseMultiplier(booster: string): number {
 }
 
 /**
- * Scripted Red-Spin Savior rescue success calibration rate (~80%).
- * Total game RTP remains strictly within ~85.0% envelope and ~22.8% hit frequency.
+ * Scripted Red-Spin Savior rescue success calibration rate (~70%).
+ * Total game RTP remains strictly within ~84.5% envelope and ~21.5% hit frequency.
  */
-export const SAVIOR_RESPIN_RESCUE_RATE = 0.80;
+export const SAVIOR_RESPIN_RESCUE_RATE = 0.70;
 
 /**
  * Executes a deterministic RGS round with Red-Spin Savior and Star Respin empty-reel respin support
@@ -253,10 +256,10 @@ export function spinRound(
     red_spin_triggered = true;
     salvaged_reel = 1; // Reel 2 is index 1
 
-    // 80% rescue rate: snaps into place on '0' or '5' bridging the gap
+    // 70% rescue rate: snaps into place on '0' (85%) or '5' (15%) bridging the gap
     if (forceRedSpin || forceNearMissWheel || Math.random() < SAVIOR_RESPIN_RESCUE_RATE) {
       red_spin_success = true;
-      salvagedStop = Math.random() < 0.787 ? '0' : '5';
+      salvagedStop = Math.random() < 0.85 ? '0' : '5';
     } else {
       red_spin_success = false;
       salvagedStop = ''; // Savior respin tried but missed
@@ -266,9 +269,9 @@ export function spinRound(
   const finalR2 = red_spin_triggered ? salvagedStop : r2;
   const initial_stops = [
     r1,
-    red_spin_triggered ? 'BLANK' : (finalR2 || 'BLANK'),
+    red_spin_triggered ? '' : finalR2,
     r3,
-    r4 || 'BLANK',
+    r4,
   ];
 
   const baseCredits = calculateConcatenatedCredits(r1, finalR2, r3);
@@ -301,7 +304,7 @@ export function spinRound(
   let respinLockedReels: number[] | undefined;
   let wheelWedge: WheelWedge | undefined;
   let rawCreditsWon = baseCredits;
-  let finalStops = [r1, finalR2 || 'BLANK', r3, r4 || 'BLANK'];
+  let finalStops = [r1, finalR2, r3, r4];
   let effectiveBaseCredits = baseCredits;
 
   if (r4 === 'RESPIN') {
@@ -348,7 +351,7 @@ export function spinRound(
 
     finalStops = [
       respunR1,
-      respunR2 || 'BLANK',
+      respunR2,
       respunR3,
       respinNewStop,
     ];
@@ -402,11 +405,20 @@ export function spinRound(
   }
 
   // Calculate final credits won scaled by denomination coinValue
-  const creditsWon = isWheel && wheelWedge
-    ? Math.round(baseCredits * coinValue) + wheelWedge.credits
-    : Math.round(rawCreditsWon * coinValue);
+  let creditsWon = 0;
+  if (isWheel && wheelWedge) {
+    const scaledBase = effectiveBaseCredits > 0
+      ? (effectiveBaseCredits * coinValue < 1 ? 1 : Math.round(effectiveBaseCredits * coinValue))
+      : 0;
+    creditsWon = scaledBase + wheelWedge.credits;
+  } else if (rawCreditsWon > 0) {
+    const scaled = rawCreditsWon * coinValue;
+    creditsWon = scaled < 1 ? 1 : Math.round(scaled);
+  }
 
-  const scaledBaseCredits = Math.round(effectiveBaseCredits * coinValue);
+  const scaledBaseCredits = effectiveBaseCredits > 0
+    ? (effectiveBaseCredits * coinValue < 1 ? 1 : Math.round(effectiveBaseCredits * coinValue))
+    : 0;
   const payout = creditsWon;
 
   return {

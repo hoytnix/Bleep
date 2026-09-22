@@ -41,14 +41,13 @@ export const CommandBar: React.FC<CommandBarProps> = ({
             type="button"
             disabled={isSpinning}
             onClick={onOpenBetModal}
-            className={`px-3 py-1.5 rounded-xl bg-black/70 hover:bg-black/90 text-yellow-300 border-2 border-[#FFD700]/50 hover:border-[#FFD700] flex items-center gap-1.5 text-xs font-black shadow-md transition-all cursor-pointer ${
+            className={`p-2 sm:p-2.5 rounded-xl bg-black/70 hover:bg-black/90 text-yellow-300 border-2 border-[#FFD700]/50 hover:border-[#FFD700] flex items-center justify-center text-xs font-black shadow-md transition-all cursor-pointer ${
               isSpinning ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
             }`}
             title="Change Bet Denomination ($1, $10, $100, $1,000)"
+            aria-label={`Select Bet Denomination ($${activeDenom})`}
           >
             <Coins className="w-4 h-4 text-yellow-400" />
-            <span className="text-white/80 uppercase tracking-wider text-[11px] hidden sm:inline">Bet Level:</span>
-            <span className="font-mono text-yellow-400 text-xs sm:text-sm font-black">${activeDenom}</span>
           </button>
         </div>
 

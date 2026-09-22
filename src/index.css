@@ -1,1 +1,26 @@
 @import "tailwindcss";
+@import "./fonts.css";
+
+@theme {
+  --font-comic: 'Fredoka', 'Nunito', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Fredoka', 'Nunito', system-ui, -apple-system, sans-serif;
+  --font-micr: 'MICR E-13B', 'GnuMICR', monospace;
+  --font-mono: 'MICR E-13B', 'GnuMICR', monospace;
+}
+
+html,
+body,
+#root {
+  font-family: 'Fredoka', 'Nunito', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-comic {
+  font-family: 'Fredoka', 'Nunito', system-ui, -apple-system, sans-serif !important;
+}
+
+.font-micr {
+  font-family: 'MICR E-13B', 'GnuMICR', monospace !important;
+}
+

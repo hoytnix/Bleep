@@ -6,7 +6,10 @@ interface CreditsBarProps {
   betCredits: number;
   isSpinning: boolean;
   isMobile: boolean;
+  isAutoplayRunning?: boolean;
+  autoplaySpinsRemaining?: number;
   onSpin: () => void;
+  onStopAutoplay?: () => void;
   onRefill?: () => void;
 }
 
@@ -16,10 +19,21 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
   betCredits,
   isSpinning,
   isMobile,
+  isAutoplayRunning = false,
+  autoplaySpinsRemaining = 0,
   onSpin,
+  onStopAutoplay,
   onRefill,
 }) => {
-  const isSpinDisabled = isSpinning || balanceCredits < betCredits;
+  const isSpinDisabled = !isAutoplayRunning && (isSpinning || balanceCredits < betCredits);
+
+  const handleButtonClick = () => {
+    if (isAutoplayRunning && onStopAutoplay) {
+      onStopAutoplay();
+    } else {
+      onSpin();
+    }
+  };
 
   return (
     <div className="w-full max-w-5xl h-full flex items-center justify-between px-2.5 sm:px-6 relative select-none">
@@ -29,18 +43,18 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
         <div className="flex flex-col justify-center gap-1 sm:gap-1.5 flex-1 min-w-0 mr-[96px] sm:mr-[126px]">
           {/* BALANCE */}
           <div className="bg-black/90 rounded-lg border-2 border-[#FFD700] px-2.5 py-1 flex items-center justify-between shadow-inner">
-            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-mono shrink-0">
+            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-comic shrink-0">
               BALANCE:
             </span>
             <div className="flex items-center gap-1.5 ml-1 min-w-0">
-              <span className="text-xs sm:text-sm font-black text-[#FFD700] font-mono tracking-tight truncate">
+              <span className="text-xs sm:text-sm font-black text-[#FFD700] font-micr tracking-tight truncate">
                 ${balanceCredits.toLocaleString()}
               </span>
               {balanceCredits < betCredits && onRefill && (
                 <button
                   type="button"
                   onClick={onRefill}
-                  className="px-1.5 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-[9px] uppercase tracking-wider cursor-pointer animate-pulse"
+                  className="px-1.5 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-[9px] uppercase tracking-wider font-comic cursor-pointer animate-pulse"
                 >
                   +REFILL
                 </button>
@@ -50,11 +64,11 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
 
           {/* WIN */}
           <div className="bg-black/90 rounded-lg border-2 border-[#FFD700] px-2.5 py-1 flex items-center justify-between shadow-inner">
-            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-mono shrink-0">
+            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-comic shrink-0">
               WIN:
             </span>
             <span
-              className={`text-xs sm:text-sm font-black font-mono tracking-tight ml-1 truncate ${
+              className={`text-xs sm:text-sm font-black font-micr tracking-tight ml-1 truncate ${
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
@@ -64,10 +78,10 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
 
           {/* BET */}
           <div className="bg-black/90 rounded-lg border-2 border-[#FFD700] px-2.5 py-1 flex items-center justify-between shadow-inner">
-            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-mono shrink-0">
+            <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-wider font-comic shrink-0">
               BET:
             </span>
-            <span className="text-xs sm:text-sm font-black text-[#FFD700] font-mono tracking-tight ml-1 truncate">
+            <span className="text-xs sm:text-sm font-black text-[#FFD700] font-micr tracking-tight ml-1 truncate">
               ${betCredits.toLocaleString()}
             </span>
           </div>
@@ -77,17 +91,17 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
         <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-wrap mr-[120px] md:mr-[150px] lg:mr-[165px]">
           {/* BALANCE Pill */}
           <div className="bg-black rounded-xl border-2 sm:border-3 border-[#FFD700] px-3 sm:px-5 md:px-6 py-1.5 sm:py-2.5 flex items-center gap-2 sm:gap-3 shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
-            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-mono">
+            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-comic">
               BALANCE:
             </span>
-            <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-mono tracking-tight">
+            <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-micr tracking-tight">
               ${balanceCredits.toLocaleString()}
             </span>
             {balanceCredits < betCredits && onRefill && (
               <button
                 type="button"
                 onClick={onRefill}
-                className="px-2 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-xs uppercase tracking-wider cursor-pointer animate-pulse shadow-sm"
+                className="px-2 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-xs uppercase tracking-wider font-comic cursor-pointer animate-pulse shadow-sm"
                 title="Refill +$2,500"
               >
                 +REFILL
@@ -97,11 +111,11 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
 
           {/* WIN Pill */}
           <div className="bg-black rounded-xl border-2 sm:border-3 border-[#FFD700] px-3 sm:px-5 md:px-6 py-1.5 sm:py-2.5 flex items-center gap-2 sm:gap-3 shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
-            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-mono">
+            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-comic">
               WIN:
             </span>
             <span
-              className={`text-sm sm:text-lg md:text-xl font-black font-mono tracking-tight ${
+              className={`text-sm sm:text-lg md:text-xl font-black font-micr tracking-tight ${
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
@@ -111,10 +125,10 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
 
           {/* BET Pill */}
           <div className="bg-black rounded-xl border-2 sm:border-3 border-[#FFD700] px-3 sm:px-5 md:px-6 py-1.5 sm:py-2.5 flex items-center gap-2 sm:gap-3 shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
-            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-mono">
+            <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider font-comic">
               BET:
             </span>
-            <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-mono tracking-tight">
+            <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-micr tracking-tight">
               ${betCredits.toLocaleString()}
             </span>
           </div>
@@ -122,26 +136,47 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
       )}
 
       {/* 
-        Tactile Arcade Spin Button
+        Tactile Arcade Spin Button / Autoplay Stop Button
         Vertically centered inside CreditsBar, ensuring complete clearance from Settings buttons above.
       */}
       <button
         type="button"
         disabled={isSpinDisabled}
-        onClick={() => onSpin()}
-        className={`absolute right-2 sm:right-5 md:right-8 top-1/2 -translate-y-1/2 z-30 w-[86px] h-[86px] sm:w-[110px] sm:h-[110px] md:w-[130px] md:h-[130px] lg:w-[140px] lg:h-[140px] aspect-square rounded-full bg-white border-4 sm:border-6 border-[#FFD700] flex items-center justify-center shadow-[0_6px_28px_rgba(255,215,0,0.75)] transition-all ${
-          isSpinDisabled
-            ? 'opacity-50 cursor-not-allowed'
-            : 'cursor-pointer hover:scale-105 hover:shadow-[0_8px_36px_rgba(255,215,0,0.95)] active:scale-95'
+        onClick={handleButtonClick}
+        className={`absolute right-2 sm:right-5 md:right-8 top-1/2 -translate-y-1/2 z-30 w-[86px] h-[86px] sm:w-[110px] sm:h-[110px] md:w-[130px] md:h-[130px] lg:w-[140px] lg:h-[140px] aspect-square rounded-full border-4 sm:border-6 flex items-center justify-center transition-all ${
+          isAutoplayRunning
+            ? 'bg-red-600 border-white shadow-[0_0_36px_rgba(239,68,68,0.9)] cursor-pointer hover:scale-105 active:scale-95 animate-pulse'
+            : isSpinDisabled
+            ? 'bg-white border-[#FFD700] opacity-50 cursor-not-allowed shadow-[0_6px_28px_rgba(255,215,0,0.75)]'
+            : 'bg-white border-[#FFD700] cursor-pointer hover:scale-105 hover:shadow-[0_8px_36px_rgba(255,215,0,0.95)] active:scale-95 shadow-[0_6px_28px_rgba(255,215,0,0.75)]'
         }`}
-        title="Press SPACE, ENTER or Click to Spin"
-        aria-label="Spin slot reels"
+        title={
+          isAutoplayRunning
+            ? `Autoplay Running (${autoplaySpinsRemaining} spins left) - Click to STOP (Press Space or Escape)`
+            : 'Press SPACE, ENTER or Click to Spin'
+        }
+        aria-label={isAutoplayRunning ? 'Stop Autoplay' : 'Spin slot reels'}
       >
-        {/* Outer Bevel Frame */}
-        <div className="w-[82%] h-[82%] rounded-full border-2 sm:border-3 border-black flex items-center justify-center bg-white shadow-inner">
-          {/* Black High-Contrast Play Triangle */}
-          <div className="w-0 h-0 border-y-[14px] sm:border-y-[20px] md:border-y-[26px] border-y-transparent border-l-[24px] sm:border-l-[32px] md:border-l-[42px] border-l-black ml-1.5 sm:ml-2.5" />
-        </div>
+        {isAutoplayRunning ? (
+          /* Autoplay Active Stop Graphic */
+          <div className="w-[82%] h-[82%] rounded-full border-2 sm:border-3 border-white flex flex-col items-center justify-center bg-black/90 shadow-inner font-comic text-white">
+            <div className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-red-500 rounded-sm sm:rounded flex items-center justify-center mb-0.5 sm:mb-1">
+              <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-white rounded-xs" />
+            </div>
+            <span className="text-[9px] sm:text-xs md:text-sm font-black text-red-400 tracking-wider">
+              STOP
+            </span>
+            <span className="text-[10px] sm:text-xs md:text-sm font-black text-white font-micr tracking-tight">
+              {autoplaySpinsRemaining}
+            </span>
+          </div>
+        ) : (
+          /* Normal Play Graphic */
+          <div className="w-[82%] h-[82%] rounded-full border-2 sm:border-3 border-black flex items-center justify-center bg-white shadow-inner">
+            {/* Black High-Contrast Play Triangle */}
+            <div className="w-0 h-0 border-y-[14px] sm:border-y-[20px] md:border-y-[26px] border-y-transparent border-l-[24px] sm:border-l-[32px] md:border-l-[42px] border-l-black ml-1.5 sm:ml-2.5" />
+          </div>
+        )}
       </button>
     </div>
   );

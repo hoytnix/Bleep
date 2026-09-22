@@ -117,7 +117,7 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
       const displayCredits = Math.round(wedge.credits * (coinValue ?? 1));
       const textStr = displayCredits >= 10000 ? `$${Math.round(displayCredits / 1000)}K` : `$${displayCredits}`;
       const isJackpot = displayCredits >= 1000;
-      ctx.font = `900 ${isJackpot ? Math.max(13, Math.floor(radius * 0.095)) : Math.max(15, Math.floor(radius * 0.11))}px "Chakra Petch", "Space Grotesk", sans-serif`;
+      ctx.font = `bold ${isJackpot ? Math.max(13, Math.floor(radius * 0.095)) : Math.max(15, Math.floor(radius * 0.11))}px "MICR E-13B", "GnuMICR", monospace`;
 
       // Text outline for comic punch
       ctx.lineWidth = 4;
@@ -172,7 +172,7 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
     ctx.stroke();
 
     // Center Text
-    ctx.font = `900 ${Math.max(10, Math.floor(hubRadius * 0.32))}px "Rubik Mono One", "Chakra Petch", sans-serif`;
+    ctx.font = `bold ${Math.max(10, Math.floor(hubRadius * 0.32))}px "MICR E-13B", "GnuMICR", monospace`;
     ctx.fillStyle = '#ffd700';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -439,19 +439,19 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
       </div>
 
       {/* Top Marquee Header */}
-      <header className="relative z-10 w-full max-w-xl text-center pt-2 pb-1">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-yellow-400/20 border-2 border-yellow-400 text-yellow-300 text-xs sm:text-sm font-black uppercase tracking-widest shadow-[0_0_20px_rgba(255,215,0,0.4)] mb-1">
+      <header className="relative z-10 w-full max-w-xl text-center pt-2 pb-1 font-comic">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-yellow-400/20 border-2 border-yellow-400 text-yellow-300 text-xs sm:text-sm font-black uppercase tracking-widest shadow-[0_0_20px_rgba(255,215,0,0.4)] mb-1 font-comic">
           <Flame className="w-4 h-4 text-yellow-400 animate-bounce" />
           ★ BONUS ROUND EVENT ★
           <Flame className="w-4 h-4 text-yellow-400 animate-bounce" />
         </div>
 
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#FFD700] tracking-tight font-serif drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#FFD700] tracking-tight font-comic drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
           DUMMY JACKPOT!
         </h1>
 
-        <p className="text-xs sm:text-sm text-lime-400 font-black tracking-wide font-mono mt-0.5">
-          WIN UP TO ${Math.round(5000 * (coinValue ?? 1)).toLocaleString()}!
+        <p className="text-xs sm:text-sm text-lime-400 font-black tracking-wide font-comic mt-0.5">
+          WIN UP TO <span className="font-micr">${Math.round(5000 * (coinValue ?? 1)).toLocaleString()}</span>!
         </p>
       </header>
 
@@ -467,28 +467,28 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
       </div>
 
       {/* Bottom Command Area & Status Banner */}
-      <footer className="relative z-10 w-full max-w-md pb-2 sm:pb-4 flex flex-col items-center gap-2">
+      <footer className="relative z-10 w-full max-w-md pb-2 sm:pb-4 flex flex-col items-center gap-2 font-comic">
         {phase === 'IDLE' && (
-          <div className="w-full flex flex-col items-center gap-2">
+          <div className="w-full flex flex-col items-center gap-2 font-comic">
             <button
               id="spin-wheel-btn"
               type="button"
               onClick={handleStartSpin}
-              className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-[#FFD700] hover:bg-yellow-400 active:scale-98 text-black font-black text-base sm:text-lg uppercase tracking-wider cursor-pointer shadow-[0_0_30px_rgba(255,215,0,0.6)] border-3 border-black transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 sm:py-4 px-6 rounded-2xl bg-[#FFD700] hover:bg-yellow-400 active:scale-98 text-black font-black text-base sm:text-lg uppercase tracking-wider cursor-pointer shadow-[0_0_30px_rgba(255,215,0,0.6)] border-3 border-black transition-all flex items-center justify-center gap-2 font-comic"
             >
               <Sparkles className="w-6 h-6 text-black" />
               SPIN THE WHEEL!
               <Sparkles className="w-6 h-6 text-black" />
             </button>
-            <span className="text-[11px] text-slate-300 font-mono">
-              Press SPACE or click to spin • Auto-spins in {autoSpinCountdown}s
+            <span className="text-[11px] text-slate-300 font-comic">
+              Press SPACE or click to spin • Auto-spins in <span className="font-micr">{autoSpinCountdown}</span>s
             </span>
           </div>
         )}
 
         {phase === 'SPINNING' && (
-          <div className="w-full py-3 px-6 rounded-2xl bg-black/80 border-2 border-yellow-500/50 text-center shadow-lg">
-            <p className="text-sm sm:text-base font-black text-yellow-400 tracking-wider animate-pulse flex items-center justify-center gap-2">
+          <div className="w-full py-3 px-6 rounded-2xl bg-black/80 border-2 border-yellow-500/50 text-center shadow-lg font-comic">
+            <p className="text-sm sm:text-base font-black text-yellow-400 tracking-wider animate-pulse flex items-center justify-center gap-2 font-comic">
               <Sparkles className="w-4 h-4 text-yellow-400 animate-spin" />
               SPINNING WHEEL... GOOD LUCK!
               <Sparkles className="w-4 h-4 text-yellow-400 animate-spin" />
@@ -497,19 +497,19 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
         )}
 
         {phase === 'CELEBRATING' && (
-          <div className="w-full bg-[#0a0a0a] border-3 border-[#39FF14] rounded-2xl p-3 sm:p-4 text-center shadow-[0_0_35px_rgba(57,255,20,0.45)] animate-scale-up">
-            <div className="flex items-center justify-center gap-1.5 text-yellow-400 text-xs font-black uppercase tracking-wider mb-1">
+          <div className="w-full bg-[#0a0a0a] border-3 border-[#39FF14] rounded-2xl p-3 sm:p-4 text-center shadow-[0_0_35px_rgba(57,255,20,0.45)] animate-scale-up font-comic">
+            <div className="flex items-center justify-center gap-1.5 text-yellow-400 text-xs font-black uppercase tracking-wider mb-1 font-comic">
               <Trophy className="w-4 h-4 text-yellow-400" />
               WHEEL PRIZE AWARDED!
             </div>
 
-            <div className="text-3xl sm:text-4xl font-black text-[#39FF14] font-mono tracking-tight my-0.5">
+            <div className="text-3xl sm:text-4xl font-black text-[#39FF14] font-micr tracking-tight my-0.5">
               +${targetWedge.credits.toLocaleString()}!
             </div>
 
             {baseCredits > 0 && (
-              <p className="text-xs text-slate-300 font-mono mb-2">
-                Reel Win: <span className="text-yellow-400 font-bold">${baseCredits}</span> + Wheel Prize: <span className="text-[#39FF14] font-bold">${targetWedge.credits}</span> = <strong className="text-white">${finalCreditsWon} Total!</strong>
+              <p className="text-xs text-slate-300 font-comic mb-2">
+                Reel Win: <span className="text-yellow-400 font-bold font-micr">${baseCredits}</span> + Wheel Prize: <span className="text-[#39FF14] font-bold font-micr">${targetWedge.credits}</span> = <strong className="text-white font-micr">${finalCreditsWon} Total!</strong>
               </p>
             )}
 
@@ -517,10 +517,10 @@ export const WheelBonusOverlay: React.FC<WheelBonusOverlayProps> = ({
               id="collect-wheel-prize-btn"
               type="button"
               onClick={() => onComplete(targetWedge)}
-              className="w-full mt-1.5 py-3 rounded-xl bg-[#39FF14] hover:bg-lime-400 active:scale-98 text-black font-black text-sm uppercase tracking-wider cursor-pointer shadow-[0_4px_16px_rgba(57,255,20,0.5)] border-2 border-black transition-all flex items-center justify-center gap-2"
+              className="w-full mt-1.5 py-3 rounded-xl bg-[#39FF14] hover:bg-lime-400 active:scale-98 text-black font-black text-sm uppercase tracking-wider cursor-pointer shadow-[0_4px_16px_rgba(57,255,20,0.5)] border-2 border-black transition-all flex items-center justify-center gap-2 font-comic"
             >
               <CheckCircle className="w-5 h-5 text-black" />
-              COLLECT ${finalCreditsWon.toLocaleString()}! ({autoCollectCountdown}s)
+              <span>COLLECT <span className="font-micr">${finalCreditsWon.toLocaleString()}</span>! ({autoCollectCountdown}s)</span>
             </button>
           </div>
         )}

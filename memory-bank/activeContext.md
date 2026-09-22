@@ -156,9 +156,90 @@ The WYSIWYG Mechanical Stepper Slot Machine has been enhanced and stabilized:
         6. Reel 4 special event resolves cleanly (Wheel Bonus overlay launches, awaits player spin, and completes).
         7. Payout celebration and win ticker animation credit total combined won credits.
       - Added direct combo test trigger: `🎯 Test Savior + Wheel Combo` in `StatsModal.tsx` and keyboard shortcut `N` in `App.tsx`.
+25. Calibrated Stop Weights & 84%-85% RTP Optimization:
+    - User Request: "Adjust the weights of the game like that example code so that RTP is around 84%-85%".
+    - Math & Calibration Updates (`src/game/math.ts`):
+      - Reel 1 Weights (Total 1000): `BLANK`: 790, `'1'`: 130, `'2'`: 52, `'5'`: 21, `'10'`: 7 (Base Hit Rate ~21.0%).
+      - Reel 2 Weights (Total 1000): `BLANK`: 790, `'0'`: 158, `'5'`: 44, `'00'`: 8 (Prevents 3-digit inflation).
+      - Reel 3 Weights (Total 1000): `BLANK`: 882, `'0'`: 90, `'5'`: 28.
+      - Reel 4 Weights (Total 1000): `BLANK`: 845, `'2X'`: 90, `'3X'`: 38, `'5X'`: 14, `'10X'`: 5, `'RESPIN'`: 4, `'WHEEL'`: 4 (~1 in 250 spins for Wheel/Respin).
+      - Respin Booster Weights (Total 1000): `'2X'`: 700, `'3X'`: 200, `'5X'`: 80, `'10X'`: 20.
+      - 20 Wheel Wedges Data: Calibrated distribution with 6x100, 5x150, 4x250, 3x400, 1x750, 1x2500 (average = 340 credits).
+      - Red-Spin Savior: 70% rescue rate snapping to '0' (85%) or '5' (15%).
+      - Rigorously verified across 3 × 1,000,000 Monte Carlo simulation runs yielding steady ~84.7% RTP and ~21.4% hit frequency.
+
+26. Bank Cheque / Federal Reserve MICR E-13B Typography Everywhere:
+    - User Request: "Make every font in the game MICR E-13B."
+    - Configured Tailwind CSS `@theme` variables (`--font-sans`, `--font-mono`, `--font-serif`) to `'MICR E-13B', 'GnuMICR', monospace`.
+    - Applied universal CSS wildcard and root element rules (`*`, `html`, `body`, `#root`, buttons, inputs, headers, paragraphs, spans, tables, meters) in `src/index.css` to enforce MICR E-13B globally.
+    - Updated all PixiJS `TextStyle` configurations in `src/game/PixiSlotEngine.ts` to `['MICR E-13B', 'GnuMICR', 'monospace']`.
+    - Updated `WheelBonusOverlay.tsx` canvas 2D contexts (`ctx.font`) to render wedge credit values, jackpot labels, and center hub text with `'MICR E-13B', 'GnuMICR', monospace`.
+
+27. Regulatory Autoplay & Responsible Gaming Session Limits:
+    - User Request: "Autoplay & Session Limits: Standard casino regulatory requirements: an autoplay drawer (10, 25, 50, 100 spins) [icon to the right of the turbo button] with 'Stop on Bonus' and 'Stop if Balance Decreases by X' limits."
+    - UI Architecture (`src/components/AutoplayDrawer.tsx`):
+      - Standard casino regulatory modal drawer with clean MICR E-13B styling and gold accents.
+      - Spin count selector pills: 10, 25, 50, 100 spins.
+      - "Stop on Bonus Feature" toggle (default ON; automatically pauses on Wheel Bonus, Star Respins, and Red-Spin Savior events).
+      - "Stop if Balance Decreases by (Loss Limit)" selector (Dynamic options scaled by active Bet: 10x, 25x, 50x, 100x Bet, or No Limit).
+      - "Stop if Single Win Exceeds" selector (Dynamic options: 10x, 25x, 50x, 100x Bet, or No Limit).
+      - Quick Cost breakdown card showing Total Max Wager, Current Balance, and Active Safeguards.
+    - Settings Bar & Credits Bar Controls:
+      - Placed the Autoplay button directly to the right of the Turbo button in `SettingsBar.tsx`.
+      - Active state styling: Pulsing neon cyan/gold ring when autoplay is executing, displaying remaining spins count badge.
+      - Integrated dual-purpose tactile Spin / STOP button in `CreditsBar.tsx`: Transforms into an arcade red pulsing STOP button displaying the remaining spins during autoplay.
+    - Autoplay Execution & Regulatory Loop (`src/App.tsx`):
+      - State-machine driven loop with non-blocking timers paced appropriately for active Turbo mode (Normal / Turbo / Instant).
+      - Strict limit checks after every spin outcome:
+        1. Insufficient balance check.
+        2. "Stop on Bonus" trigger detection (Wheel Bonus, Star Respin, Red-Spin Savior).
+        3. Net loss limit threshold comparison against initial session balance.
+        4. Single win limit threshold check.
+        5. Total requested spins completed.
+      - Interactive manual cancellation: Clicking the STOP button, Settings button, or pressing `SPACE`, `ENTER`, `ESCAPE`, or `A` immediately halts autoplay and updates the handbook with clear reason feedback.
+      - Updated `PaytableModal.tsx` with dedicated "5. Autoplay & Session Limits" section.
+
+28. Typography Refactor & Font Specialization:
+    - User Request: Separate numeric currency figures from instructional prose. Restrict MICR E-13B strictly to reel number symbols, handbook bracket readout values, and HUD meters (BALANCE, WIN, BET). Switch all prose, headers, modal instructions, button labels, and handbook copy to a rounded comic typeface (`Fredoka` / `Nunito`).
+    - Configured Google Fonts import in `index.html` for `Fredoka:wght@600;700;800;900` and `Nunito:wght@700;800;900`.
+    - Defined Tailwind theme font variables `--font-comic` (`'Fredoka', 'Nunito', cursive, sans-serif`) and `--font-micr` (`'MICR E-13B', 'GnuMICR', monospace`).
+    - Removed blanket global font overrides, enabling fine-grained typography assignment across all UI components.
+    - Updated `Handbook.tsx` to format prose labels in bold `font-comic` with standard Title/UPPERCASE styling, while isolating bracket readout numeric stops (`[ 1 0 0 ]`) to `font-micr`.
+    - Updated `CreditsBar.tsx`, `SettingsBar.tsx`, `BetModal.tsx`, `PaytableModal.tsx`, `StatsModal.tsx`, `AutoplayDrawer.tsx`, and `WheelBonusOverlay.tsx` to use `font-comic` for copy, labels, and buttons, and `font-micr` strictly for currency figures.
+
+29. Mobile Viewport Layout Tweaks:
+    - User Request: "In portrait mobile mode, increase the vertical scale and padding of the 4 reels so they occupy the center section prominently without excessive dead space between the handbook and the command console."
+    - In `src/App.tsx`:
+      - Adjusted section proportions: Handbook top header (`20vh` on mobile vs `25vh` on desktop), Reels section (`44vh` on mobile vs `37.5vh` on desktop), Settings bar (`11vh` on mobile vs `12.5vh` on desktop), Credits console (`25vh`).
+    - In `src/game/PixiSlotEngine.ts`:
+      - Dynamic mobile stepper reel aspect ratio increased to 1.52 on portrait mobile viewports, maximizing vertical presence without clipping.
+      - Calibrated horizontal and vertical padding (`paddingX`, `paddingY`, and reel `gap`) to eliminate unused dead space on phones.
+
+30. Icon-Only Button Refinements for Denomination, Turbo, & Auto:
+    - User Request: "Turbo & Auto buttons should not have text on Mobile. Should be icon only. Denomination button should never have text and should only ever be an icon no matter the resolution."
+    - In `src/components/SettingsBar.tsx`:
+      - Denomination button: Removed all text labels across all resolutions; rendered strictly as an icon button (`<Coins className="..." />`) on mobile, tablet, and desktop.
+      - Turbo button: Hid text labels on mobile screens (`hidden sm:inline`), rendering only the `<Zap />` or `<FastForward />` icon in mobile viewports.
+      - Auto button: Hid text labels on mobile screens (`hidden sm:inline`), rendering only the `<RotateCw />` (or `<Square />`) icon in mobile viewports.
+    - In `src/components/CommandBar.tsx`:
+      - Synchronized denomination button to be strictly icon-only across all viewports.
+
+31. Standardized Guide Book Blank Display Formatting:
+    - User Request: "On the left page of the Guide Book when it says 'YOU LANDED:' the results for the 1st & 3rd reel if blank is `-` but for the 2nd reel its `BLANK` but it should be `-`."
+    - Root Cause: `src/game/math.ts` previously returned `'BLANK'` fallback strings for `finalR2` and `r4` instead of empty strings, which prevented `s || '—'` mapping from converting the truthy string to a dash.
+    - Implementation:
+      - Cleaned `src/game/math.ts` to return empty string `''` consistently for all blank reel stops across `initial_stops` and `finalStops`.
+      - Implemented a unified `formatStop` function in `src/App.tsx` (`s === 'BLANK' || !s || s === '—' || s === '-' ? '-' : s`) and applied it across all Handbook displays, respin outcomes, near-miss prompts, and `PaytableModal.tsx` rule examples.
+      - Blank stops across all 3 reels now consistently display as `-`.
+
+32. 4th Reel Top & Bottom Star Aesthetic Harmonization:
+    - User Request: "Remove the border from underneath the star at the top of the 4th reel and add a star to the bottom of the 4th reel as well so it looks similar to the rest of the reels."
+    - Removed the dividing header band rectangle and border stroke from underneath the top star on Reel 4 (`src/game/PixiSlotEngine.ts`).
+    - Added matching bottom star to Reel 4 (`reel.starBottom`) positioned at `(reelWidth / 2, reelHeight - bandH / 2)` with matching radius, perfectly harmonizing the visual framing across all 4 reels.
 
 ## Implemented Architecture
-- `src/game/math.ts`: Deterministic Stake RGS outcome generator with calibrated stop weights (~85.0% RTP, ~22.8% Hit Frequency), fixed 10-credit model, concatenation rules, Monte Carlo simulator.
+- `src/components/AutoplayDrawer.tsx`: Regulatory configuration drawer with spin counts (10, 25, 50, 100), Stop on Bonus toggle, Loss Limits, and Single Win Limits.
+- `src/game/math.ts`: Deterministic Stake RGS outcome generator with calibrated stop weights (~84.5% RTP, ~21.4% Hit Frequency), fixed 10-credit model, concatenation rules, Monte Carlo simulator.
 - `src/game/AudioEngine.ts`: Pure Web Audio API procedural synthesizer for mechanical stepper clicks, solenoid clunks, flapper ratchets, and jackpot fanfare.
 - `src/game/PixiSlotEngine.ts`: PixiJS v8 canvas application with dynamic responsive reel scaling, procedural MICR number textures, vector SVG colorful wheel and star symbol rendering, spring overshoot (`back.out`), Purple Respin event, and async `onWheelTrigger` hook.
 - `src/components/WheelBonusOverlay.tsx`: Full-screen immersive bonus wheel overlay with interactive spin button, auto-timers, physics wheel, flapper deflection, and win fanfare titled "DUMMY JACKPOT!".

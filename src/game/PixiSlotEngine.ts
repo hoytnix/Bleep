@@ -73,6 +73,19 @@ export class PixiSlotEngine {
     this.stageHeight = height;
     this.isMobile = width < 768;
 
+    // Ensure authentic Federal Reserve / Bank Cheque MICR E-13B fonts are pre-loaded
+    try {
+      if (typeof document !== 'undefined' && document.fonts) {
+        await Promise.allSettled([
+          document.fonts.load('48px "MICR E-13B"'),
+          document.fonts.load('48px "GnuMICR"'),
+          document.fonts.ready,
+        ]);
+      }
+    } catch {
+      // Continue gracefully if Font Loading API is unavailable
+    }
+
     const app = new Application();
     await app.init({
       width,
@@ -237,7 +250,7 @@ export class PixiSlotEngine {
     if (isBooster) {
       if (text === 'RESPIN') {
         return new TextStyle({
-          fontFamily: 'Chakra Petch, Rubik Mono One, Courier Prime, monospace',
+          fontFamily: ['MICR E-13B', 'GnuMICR', 'monospace'],
           fontSize: Math.max(16, Math.floor(rw * 0.23)),
           fontWeight: '900',
           fill: 0xffffff,
@@ -252,7 +265,7 @@ export class PixiSlotEngine {
       }
       if (text === 'WHEEL') {
         return new TextStyle({
-          fontFamily: 'Chakra Petch, Rubik Mono One, sans-serif',
+          fontFamily: ['MICR E-13B', 'GnuMICR', 'monospace'],
           fontSize: Math.max(16, Math.floor(rw * 0.22)),
           fontWeight: '900',
           fill: 0xffea00,
@@ -267,8 +280,8 @@ export class PixiSlotEngine {
       }
       // Standard Multipliers (2X, 3X, 5X, 10X)
       return new TextStyle({
-        fontFamily: 'Chakra Petch, Rubik Mono One, Courier Prime, monospace',
-        fontSize: Math.max(26, Math.floor(rw * 0.38)),
+        fontFamily: ['MICR E-13B', 'GnuMICR', 'monospace'],
+        fontSize: Math.max(26, Math.floor(rw * 0.40)),
         fontWeight: '900',
         fill: 0xffffff,
         stroke: { width: Math.max(4, Math.floor(rw * 0.05)), color: 0x0a0a0a },
@@ -281,14 +294,16 @@ export class PixiSlotEngine {
       });
     }
 
-    // Reels 1-3 MICR Banknote Numeral Style (Yellow with heavy black drop shadow)
+    // Reels 1-3 Authentic Bank Cheque / Federal Reserve MICR E-13B Numeral Style
+    // Thick rectangular blocks, asymmetric bottom weight, slab cuts, yellow with heavy black drop shadow
     const isWide = text === '10' || text === '00';
     return new TextStyle({
-      fontFamily: 'Courier Prime, Chakra Petch, monospace',
-      fontSize: Math.max(30, Math.floor(rw * (isWide ? 0.38 : 0.52))),
-      fontWeight: '900',
+      fontFamily: ['MICR E-13B', 'GnuMICR', 'monospace'],
+      fontSize: Math.max(34, Math.floor(rw * (isWide ? 0.44 : 0.60))),
+      fontWeight: 'bold',
+      letterSpacing: isWide ? 2 : 0,
       fill: 0xffd700, // taxi-cab yellow
-      stroke: { width: Math.max(4, Math.floor(rw * 0.05)), color: 0x0a0a0a },
+      stroke: { width: Math.max(3, Math.floor(rw * 0.04)), color: 0x0a0a0a },
       dropShadow: {
         color: 0x0a0a0a,
         blur: 0,
@@ -471,16 +486,22 @@ export class PixiSlotEngine {
 
     // Calculate dimensions dynamically to scale up with screen size and eliminate unused vertical margins
     const totalReels = 4;
-    const gap = Math.max(4, Math.min(14, Math.floor(width * 0.014)));
-    const paddingX = Math.max(6, Math.min(18, Math.floor(width * 0.02)));
-    const paddingY = Math.max(3, Math.min(8, Math.floor(height * 0.02)));
+    const gap = this.isMobile
+      ? Math.max(3, Math.min(10, Math.floor(width * 0.012)))
+      : Math.max(4, Math.min(14, Math.floor(width * 0.014)));
+    const paddingX = this.isMobile
+      ? Math.max(4, Math.min(12, Math.floor(width * 0.015)))
+      : Math.max(6, Math.min(18, Math.floor(width * 0.02)));
+    const paddingY = this.isMobile
+      ? Math.max(2, Math.min(6, Math.floor(height * 0.01)))
+      : Math.max(3, Math.min(8, Math.floor(height * 0.02)));
 
     const availableWidth = width - paddingX * 2;
     const availableHeight = height - paddingY * 2;
 
-    // Stepper reel aspect ratio: 1.42 fills vertical reel height snugly
-    const aspect = 1.42;
-    const maxReelWidthByHeight = Math.floor((availableHeight * 0.98) / aspect);
+    // Stepper reel aspect ratio: 1.52 on mobile to maximize vertical presence, 1.42 on desktop
+    const aspect = this.isMobile ? 1.52 : 1.42;
+    const maxReelWidthByHeight = Math.floor((availableHeight * 0.99) / aspect);
     const maxReelWidthByWidth = Math.floor((availableWidth - (totalReels - 1) * gap) / totalReels);
 
     // Dynamic reelWidth: smoothly scale up on phones, tablets, and desktops
@@ -508,30 +529,22 @@ export class PixiSlotEngine {
       reel.lockGlow.clear();
 
       if (reel.isBooster) {
-        // Booster Lime-Green Casing (#39FF14 / #65a30d)
+        // Booster Lime-Green Casing (#39FF14 / #84cc16)
         reel.bg
           .roundRect(0, 0, reelWidth, reelHeight, 14)
           .fill({ color: 0x84cc16 })
           .stroke({ width: 4, color: 0x0a0a0a });
 
-        // Header band
-        const headerH = Math.max(22, Math.floor(reelHeight * 0.14));
-        reel.bg
-          .rect(0, 0, reelWidth, headerH)
-          .fill({ color: 0x65a30d })
-          .stroke({ width: 2, color: 0x0a0a0a });
+        const bandH = Math.max(24, Math.floor(reelHeight * 0.16));
 
-        // 4th Reel Header Star (replacing "BOOSTER REEL" text)
-        const oldBanner = reel.container.getChildByName('booster_banner');
-        if (oldBanner) {
-          reel.container.removeChild(oldBanner);
-        }
-
+        // 4th Reel Stars (Top and Bottom) matching Reels 1-3
         reel.starTop.clear();
-        const headerStarRadius = Math.max(7, Math.floor(headerH * 0.3));
-        this.drawStar(reel.starTop, reelWidth / 2, headerH / 2, headerStarRadius);
+        reel.starBottom.clear();
+        const starRadius = Math.max(7, Math.floor(bandH * 0.3));
+        this.drawStar(reel.starTop, reelWidth / 2, bandH / 2, starRadius);
+        this.drawStar(reel.starBottom, reelWidth / 2, reelHeight - bandH / 2, starRadius);
         reel.starTop.visible = true;
-        reel.starBottom.visible = false;
+        reel.starBottom.visible = true;
       } else {
         // Classic White Reel with Yellow Framing
         reel.bg
