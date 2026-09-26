@@ -1,51 +1,102 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { soundEngine } from '../game/AudioEngine';
 
 interface IntroRulesModalProps {
-  onStartGame: () => void;
+  isOpen?: boolean;
+  onClose: () => void;
+  isInitialBoot?: boolean;
 }
 
-export const IntroRulesModal: React.FC<IntroRulesModalProps> = ({ onStartGame }) => {
-  const [dontShowAgain, setDontShowAgain] = useState<boolean>(false);
+export const IntroRulesModal: React.FC<IntroRulesModalProps> = ({
+  isOpen = true,
+  onClose,
+  isInitialBoot = false,
+}) => {
+  const [dontShowAgain, setDontShowAgain] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('cash_machine_hide_intro_rules') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const handleToggleDontShowAgain = () => {
     soundEngine.playButtonPress();
-    setDontShowAgain((prev) => !prev);
+    setDontShowAgain((prev) => {
+      const next = !prev;
+      try {
+        if (next) {
+          localStorage.setItem('cash_machine_hide_intro_rules', 'true');
+        } else {
+          localStorage.removeItem('cash_machine_hide_intro_rules');
+        }
+      } catch {
+        // LocalStorage access handling
+      }
+      return next;
+    });
   };
 
-  const handlePlayNow = async () => {
+  const handleActionClick = async () => {
     try {
       if (dontShowAgain) {
-        localStorage.setItem('wysiwyg_hide_intro_rules', 'true');
+        localStorage.setItem('cash_machine_hide_intro_rules', 'true');
+      } else {
+        localStorage.removeItem('cash_machine_hide_intro_rules');
       }
     } catch {
       // LocalStorage access handling
     }
 
-    // Unlock Web Audio context
-    try {
-      await soundEngine.init();
-      soundEngine.playSpinLeverPull();
-    } catch {
-      // Audio unlock fallback
+    if (isInitialBoot) {
+      // Unlock Web Audio context
+      try {
+        await soundEngine.init();
+        soundEngine.playSpinLeverPull();
+      } catch {
+        // Audio unlock fallback
+      }
+    } else {
+      soundEngine.playButtonPress();
     }
 
-    onStartGame();
+    onClose();
   };
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto select-none font-sans">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto select-none font-sans"
+    >
       {/* Comic Handbook Card / Open Instructional Booklet */}
-      <div className="relative w-full max-w-2xl bg-[#FFFDE7] border-4 border-black rounded-2xl shadow-[10px_10px_0px_#000] overflow-hidden my-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl bg-[#FFFDE7] border-4 border-black rounded-2xl shadow-[10px_10px_0px_#000] overflow-hidden my-auto"
+      >
         {/* Handbook Header Band */}
         <div className="bg-[#FFD700] border-b-4 border-black p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-black text-[#FFD700] rounded-xl border-2 border-black flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_rgba(0,0,0,0.3)]">
+            <div className="w-10 h-10 bg-black text-[#FFD700] rounded-xl border-2 border-black flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_rgba(0,0,0,0.3)] shrink-0">
               📖
             </div>
             <div>
               <div className="text-[11px] font-black tracking-widest uppercase text-black/70">
-                OFFICIAL PLAYER'S HANDBOOK
+                OFFICIAL $!#? PLAYER'S HANDBOOK
               </div>
               <h2
                 className="text-2xl sm:text-3xl font-black text-black tracking-tight uppercase leading-none drop-shadow-[1px_1px_0px_#fff]"
@@ -55,10 +106,22 @@ export const IntroRulesModal: React.FC<IntroRulesModalProps> = ({ onStartGame })
               </h2>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-white border-2 border-black rounded-lg text-xs font-black uppercase text-black shadow-[2px_2px_0px_#000]">
-            <span>STAKE ENGINE</span>
-            <span>·</span>
-            <span className="text-emerald-700">84.8% RTP</span>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-white border-2 border-black rounded-lg text-xs font-black uppercase text-black shadow-[2px_2px_0px_#000]">
+              <span>STAKE ENGINE</span>
+              <span>·</span>
+              <span className="text-emerald-700">84.8% RTP</span>
+            </div>
+            {/* Direct Close Button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white hover:bg-neutral-200 text-black border-2 border-black flex items-center justify-center cursor-pointer shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-transform"
+              title="Close Handbook (Esc)"
+              aria-label="Close Handbook"
+            >
+              <X className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
+            </button>
           </div>
         </div>
 
@@ -71,9 +134,9 @@ export const IntroRulesModal: React.FC<IntroRulesModalProps> = ({ onStartGame })
                 <span className="text-xs font-black tracking-wide text-black uppercase bg-[#FFD700] px-2 py-0.5 rounded border-2 border-black shadow-[1px_1px_0px_#000]">
                   RULE 1
                 </span>
-                <span className="text-xs font-bold text-neutral-500">WYSIWYG Payout</span>
+                <span className="text-xs font-bold text-neutral-500">$!#? Payout</span>
               </div>
-              <h3 className="text-base font-black text-black mb-1">Win What You See!</h3>
+              <h3 className="text-base font-black text-black mb-1">$!#? (Win What You See!)</h3>
               <p className="text-xs font-medium text-neutral-700 leading-relaxed mb-3">
                 Numbers concatenate left-to-right into your exact credit win. No paylines!
               </p>
@@ -189,16 +252,16 @@ export const IntroRulesModal: React.FC<IntroRulesModalProps> = ({ onStartGame })
               )}
             </div>
             <span className="text-xs sm:text-sm font-extrabold text-neutral-800 group-hover:text-black">
-              Don't show this again
+              {isInitialBoot ? "Don't show on game launch" : "Don't show on startup"}
             </span>
           </label>
 
-          {/* Action Button: PLAY NOW */}
+          {/* Action Button: PLAY NOW / BACK TO REELS */}
           <button
-            onClick={handlePlayNow}
+            onClick={handleActionClick}
             className="w-full sm:w-auto px-8 sm:px-10 py-3.5 bg-[#FFD700] hover:bg-yellow-400 text-black font-black text-base uppercase rounded-xl border-3 border-black shadow-[4px_4px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0px_#000] transition-transform cursor-pointer tracking-wider"
           >
-            PLAY NOW ▶
+            {isInitialBoot ? 'PLAY NOW ▶' : 'BACK TO REELS ▶'}
           </button>
         </div>
       </div>

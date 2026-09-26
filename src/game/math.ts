@@ -321,7 +321,7 @@ export function pickWeighted<T>(items: WeightedItem<T>[]): T {
 }
 
 /**
- * Calculates WYSIWYG concatenated digits
+ * Calculates $!#? concatenated digits
  * Rule:
  * - Reel 1 must be active ('1', '2', '5', '10') to initiate win. Blank = 0.
  * - Reels 2 and 3 concatenate adjacent non-blank digits.

@@ -1,7 +1,7 @@
-# Project Brief: WYSIWYG Mechanical Stepper Slot Game
+# Project Brief: $!#? ("Win What You See") Mechanical Stepper Slot Game
 
 ## Overview
-A complete, responsive WYSIWYG ("Win What You See") casino slot game inspired by classic mechanical steppers (e.g., Everi Cash Machine, Respin for Dummies) and calibrated with Stake Engine Remote Gaming Server (RGS) math principles.
+A complete, responsive $!#? ("Win What You See") casino slot game inspired by classic mechanical steppers (e.g., Everi Cash Machine, Respin for Dummies) and calibrated with Stake Engine Remote Gaming Server (RGS) math principles.
 
 ## Core Pillars
 1. **Visual Aesthetics & Banknote Typography**:

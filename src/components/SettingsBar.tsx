@@ -15,7 +15,7 @@ interface SettingsBarProps {
   onStopAutoplay: () => void;
   onSelectDenom?: (denom: Denomination) => void;
   onToggleMute: () => void;
-  onOpenPaytable: () => void;
+  onOpenRules: () => void;
   onOpenStats: () => void;
   onOpenBetModal: () => void;
 }
@@ -31,7 +31,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   onOpenAutoplay,
   onStopAutoplay,
   onToggleMute,
-  onOpenPaytable,
+  onOpenRules,
   onOpenStats,
   onOpenBetModal,
 }) => {
@@ -132,12 +132,12 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
           <span className="hidden sm:inline font-comic tracking-wider">STATS</span>
         </button>
 
-        {/* Rules & Paytable Button */}
+        {/* Rules & Handbook Button */}
         <button
           type="button"
-          onClick={onOpenPaytable}
+          onClick={onOpenRules}
           className="h-10 sm:h-11 md:h-12 px-2 sm:px-3 md:px-4 rounded-xl sm:rounded-2xl bg-black/80 hover:bg-black text-yellow-300 border-2 sm:border-3 border-yellow-500/50 hover:border-[#FFD700] flex items-center justify-center gap-1.5 text-xs sm:text-sm md:text-base font-black font-comic cursor-pointer transition-all shadow-md active:scale-95 hover:shadow-[0_0_12px_rgba(255,215,0,0.3)]"
-          title="Rules & Paytable (Press P or H)"
+          title="Official Player's Handbook (Press P or H)"
           aria-label="Rules"
         >
           <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-5.5 md:h-5.5 text-yellow-400 shrink-0" />

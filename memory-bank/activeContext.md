@@ -262,6 +262,17 @@ The WYSIWYG Mechanical Stepper Slot Machine has been enhanced and stabilized:
       - Vector Rendering Hardening: Replaced fragile runtime WebGL texture generation in `PixiSlotEngine.ts` with direct, crisp vector Text and Graphics rendering (`Text` with `MICR E-13B`/`GnuMICR` and procedural vector `drawColorfulWheel` & `drawRespinStar`), eliminating texture generation crashes and render delays.
       - Money Background Reliability: Copied `public/bg.jpeg` to `src/assets/bg.jpeg`, added `src/vite-env.d.ts`, and updated `CurrencyBackdrop.tsx` to set `backgroundImage: url(${moneyBg}), url('/bg.jpeg')` directly on the background container alongside an `<img>` tag with fallback, styled with valid CSS `radial-gradient` for a clear, atmospheric view of the engraved currency art.
 
+38. Unified Rules to "OFFICIAL $!#? PLAYER'S HANDBOOK" & Deleted Old Rules Page:
+    - User Request: Make the "OFFICIAL $!#? PLAYER'S HANDBOOK" what the Rules button on the Reels page opens, then delete the old rules page.
+    - Architectural Implementation:
+      - Deleted `src/components/PaytableModal.tsx` completely.
+      - Enhanced `src/components/IntroRulesModal.tsx` to serve as both the startup boot splash and the full in-game rules modal.
+      - Added high-contrast tactile close button (`X`), backdrop click-to-dismiss, and `Escape` key listener to `IntroRulesModal.tsx`.
+      - Provided context-sensitive labels (`isInitialBoot ? 'PLAY NOW ▶' : 'BACK TO REELS ▶'`).
+      - Updated `SettingsBar.tsx` prop `onOpenRules` to launch the Official $!#? Player's Handbook when clicking the `RULES` button or pressing `P` / `H`.
+      - Unified state in `App.tsx` (`isRulesOpen`), rendering `IntroRulesModal` for both boot splash and in-game inspection.
+      - Confirmed clean builds with zero lint errors.
+
 ## Implemented Architecture
 - `src/components/LoadingScreen.tsx`: Retro high-contrast boot screen tracking font readiness, backdrop image preload, and stepper calibration.
 - `src/components/IntroRulesModal.tsx`: Comic handbook splash modal explaining 4 core rules with persistent "Don't show this again" state and audio unlock.

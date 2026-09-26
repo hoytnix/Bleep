@@ -50,15 +50,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoaded }) => {
 
       // Step 2: Cabinet Backdrop Preload via Pixi Assets with image fallback
       try {
-        await Assets.load('/bg.jpeg').catch(async () => {
-          // Fallback to standard Image decode
-          await new Promise<void>((resolve, reject) => {
+        const loadPromise = Assets.load('/bg.jpeg').catch(async () => {
+          await new Promise<void>((resolve) => {
             const img = new Image();
             img.onload = () => resolve();
-            img.onerror = () => resolve(); // Don't block game if background fails
+            img.onerror = () => resolve();
             img.src = '/bg.jpeg';
           });
         });
+        const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 800));
+        await Promise.race([loadPromise, timeoutPromise]);
       } catch {
         // Continue gracefully even if background asset has network delay
       }
@@ -126,10 +127,9 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ onLoaded }) => {
 
         {/* Brand Headline */}
         <h1
-          className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-[#FFD700] uppercase mb-2 drop-shadow-[3px_3px_0px_#000]"
-          style={{ fontFamily: "'MICR E-13B', 'GnuMICR', monospace, sans-serif" }}
+          className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-[#FFD700] uppercase mb-2 drop-shadow-[4px_4px_0px_#000] font-comic"
         >
-          WYSIWYG
+          $!#?
         </h1>
         <div className="text-sm sm:text-base font-extrabold tracking-widest text-[#00E676] uppercase mb-6 flex items-center justify-center gap-2">
           <span className="w-6 h-[2px] bg-[#00E676]" />

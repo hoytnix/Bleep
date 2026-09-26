@@ -6,15 +6,20 @@ import { CurrencyBackdrop } from './components/CurrencyBackdrop';
 import { Handbook, HandbookState } from './components/Handbook';
 import { SettingsBar } from './components/SettingsBar';
 import { CreditsBar } from './components/CreditsBar';
-import { PaytableModal } from './components/PaytableModal';
 import { StatsModal } from './components/StatsModal';
 import { BetModal } from './components/BetModal';
 import { WheelBonusOverlay } from './components/WheelBonusOverlay';
 import { AutoplayDrawer, AutoplayConfig } from './components/AutoplayDrawer';
+import { LoadingScreen } from './components/LoadingScreen';
+import { IntroRulesModal } from './components/IntroRulesModal';
 
 const formatStop = (s?: string) => (!s || s === 'BLANK' || s === '—' || s === '-' ? '-' : s);
 
+type BootPhase = 'LOADING' | 'INTRO_RULES' | 'READY';
+
 export default function App() {
+  const [bootPhase, setBootPhase] = useState<BootPhase>('LOADING');
+  const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
   const [isEngineReady, setIsEngineReady] = useState<boolean>(true);
   // Credits-based meters (Dynamic Bet Credits based on selected denomination)
   const [balanceCredits, setBalanceCredits] = useState<number>(5000);
@@ -26,7 +31,6 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isRespinActive, setIsRespinActive] = useState<boolean>(false);
   const [isRedSpinActive, setIsRedSpinActive] = useState<boolean>(false);
-  const [isPaytableOpen, setIsPaytableOpen] = useState<boolean>(false);
   const [isStatsOpen, setIsStatsOpen] = useState<boolean>(false);
   const [isBetModalOpen, setIsBetModalOpen] = useState<boolean>(false);
   const [isAutoplayOpen, setIsAutoplayOpen] = useState<boolean>(false);
@@ -83,12 +87,33 @@ export default function App() {
   // Dynamic Handbook State (in $)
   const [handbookState, setHandbookState] = useState<HandbookState>({
     mode: 'IDLE',
-    leftLine1: 'Win What',
-    leftLine2: 'You See:',
+    leftLine1: '$!#?',
+    leftLine2: 'Win What You See:',
     leftValue: '[1 0 5]',
     rightLine1: 'If you see 105,',
     rightLine2: 'you win $105! ($10 Bet)',
   });
+
+  // Boot and Handbook handlers
+  const handleLoadingComplete = useCallback(() => {
+    try {
+      const hideIntro = localStorage.getItem('cash_machine_hide_intro_rules') === 'true';
+      if (hideIntro) {
+        setBootPhase('READY');
+      } else {
+        setBootPhase('INTRO_RULES');
+      }
+    } catch {
+      setBootPhase('INTRO_RULES');
+    }
+  }, []);
+
+  const handleCloseRules = useCallback(() => {
+    if (bootPhase === 'INTRO_RULES') {
+      setBootPhase('READY');
+    }
+    setIsRulesOpen(false);
+  }, [bootPhase]);
 
   // Refill balance when low
   const handleRefillBalance = useCallback(() => {
@@ -127,8 +152,8 @@ export default function App() {
     const exampleWin = Math.round(105 * coinVal);
     setHandbookState({
       mode: 'IDLE',
-      leftLine1: 'Win What',
-      leftLine2: 'You See:',
+      leftLine1: '$!#?',
+      leftLine2: 'Win What You See:',
       leftValue: '[1 0 5]',
       rightLine1: 'If you see 105,',
       rightLine2: `you win $${exampleWin.toLocaleString()}! ($${currentBet} Bet)`,
@@ -214,7 +239,7 @@ export default function App() {
           leftLine1: `AUTO SPIN ${currentSpinNumber}/${total}`,
           leftLine2: 'Good Luck!',
           leftValue: '[ ? ? ? ]',
-          rightLine1: 'Win What You See',
+          rightLine1: '$!#? Payout',
           rightLine2: `Bet: $${betCredits.toLocaleString()}`,
         });
       } else {
@@ -223,7 +248,7 @@ export default function App() {
           leftLine1: 'Spinning...',
           leftLine2: 'Good Luck!',
           leftValue: '[ ? ? ? ]',
-          rightLine1: 'Win What You See',
+          rightLine1: '$!#? Payout',
           rightLine2: `Bet: $${betCredits.toLocaleString()}`,
         });
       }
@@ -660,7 +685,7 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'm') {
         handleToggleMute();
       } else if (e.key.toLowerCase() === 'p' || e.key.toLowerCase() === 'h') {
-        setIsPaytableOpen((prev) => !prev);
+        setIsRulesOpen((prev) => !prev);
       }
     };
 
@@ -714,7 +739,7 @@ export default function App() {
             onStopAutoplay={() => handleStopAutoplay('Manually stopped by player')}
             onSelectDenom={handleSelectDenom}
             onToggleMute={handleToggleMute}
-            onOpenPaytable={() => setIsPaytableOpen(true)}
+            onOpenRules={() => setIsRulesOpen(true)}
             onOpenStats={() => setIsStatsOpen(true)}
             onOpenBetModal={() => setIsBetModalOpen(true)}
           />
@@ -754,9 +779,6 @@ export default function App() {
         onClose={() => setIsBetModalOpen(false)}
       />
 
-      {/* Paytable & Fun Rules Modal */}
-      <PaytableModal isOpen={isPaytableOpen} onClose={() => setIsPaytableOpen(false)} />
-
       {/* Monte Carlo Stats Modal */}
       <StatsModal
         isOpen={isStatsOpen}
@@ -778,6 +800,18 @@ export default function App() {
           onComplete={handleWheelBonusComplete}
         />
       )}
+
+      {/* Stepper Calibration & Asset Preload Boot Sequence */}
+      {bootPhase === 'LOADING' && (
+        <LoadingScreen onLoaded={handleLoadingComplete} />
+      )}
+
+      {/* Official $!#? Player's Handbook Modal (Initial Boot Splash & In-Game Rules Page) */}
+      <IntroRulesModal
+        isOpen={bootPhase === 'INTRO_RULES' || isRulesOpen}
+        isInitialBoot={bootPhase === 'INTRO_RULES'}
+        onClose={handleCloseRules}
+      />
     </div>
   );
 }

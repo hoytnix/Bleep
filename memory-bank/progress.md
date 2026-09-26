@@ -49,5 +49,8 @@
 - [x] Production Casino Boot Flow & Intro Rules Splash Modal (`BootState` lifecycle, `LoadingScreen.tsx` with animated striped progress bar, font readiness gate, image preload, stepper calibration, 5s timeout retry, `IntroRulesModal.tsx` comic handbook with 4 core rules, `wysiwyg_hide_intro_rules` persistence in `localStorage`, and Web Audio context unlock)
 - [x] Texture Atlas Pre-caching in PixiJS v8 (`bakeTextureAtlas`, `Sprite` symbol layers, font readiness gate with `document.fonts.ready` + `document.fonts.load('1em GnuMICR')`, `Assets.load('/bg.jpeg')` preloading, and `isEngineReady` spin button lock)
 - [x] Restored Immediate Spin Button Responsiveness & Money Currency Background Display (Eliminated boot lockout state and WebGL texture atlas generation errors, ensured direct vector Text & Graphics rendering in PixiJS v8, bundled `src/assets/bg.jpeg` with CSS background fallback and calibrated radial vignette)
+- [x] Rebranded App from "WYSIWYG" to "$!#?" across metadata.json, index.html, LoadingScreen, Handbook, IntroRulesModal, PaytableModal, and math engine
+- [x] Restored Authentic $!#? Loading Screen Boot Sequence & Official Player's Handbook Intro Modal (`bootPhase` lifecycle, timeout race safety on asset preloading, `cash_machine_hide_intro_rules` persistence)
+- [x] Unified Rules Button to "OFFICIAL $!#? PLAYER'S HANDBOOK" & Deleted Legacy PaytableModal (`IntroRulesModal` with close button, backdrop click, Escape key, and deleted `src/components/PaytableModal.tsx`)
 - [x] Build Verification (`compile_applet` & `lint_applet` passed)
 - [x] Memory Bank Final Sync
