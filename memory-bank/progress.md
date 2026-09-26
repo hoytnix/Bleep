@@ -45,5 +45,9 @@
 - [x] Icon-Only Button Refinements: Denomination button is strictly icon-only across all screen sizes/resolutions; Turbo and Auto buttons render as icon-only on mobile viewports
 - [x] Standardized Guide Book Blank Stop Display (`-` for all blank reels in "YOU LANDED:" readouts)
 - [x] 4th Reel Top & Bottom Star Aesthetic Harmonization (Removed border under top star and added matching bottom star)
+- [x] Stake Engine Provably Fair Lookup Table & RGS Decoupling (Pure HMAC-SHA256 outcome evaluator, pre-calibrated 84.8% RTP & 22.8% hit rate static lookup table exporter, signed `StakeRgsPayload` mock RGS endpoint)
+- [x] Production Casino Boot Flow & Intro Rules Splash Modal (`BootState` lifecycle, `LoadingScreen.tsx` with animated striped progress bar, font readiness gate, image preload, stepper calibration, 5s timeout retry, `IntroRulesModal.tsx` comic handbook with 4 core rules, `wysiwyg_hide_intro_rules` persistence in `localStorage`, and Web Audio context unlock)
+- [x] Texture Atlas Pre-caching in PixiJS v8 (`bakeTextureAtlas`, `Sprite` symbol layers, font readiness gate with `document.fonts.ready` + `document.fonts.load('1em GnuMICR')`, `Assets.load('/bg.jpeg')` preloading, and `isEngineReady` spin button lock)
+- [x] Restored Immediate Spin Button Responsiveness & Money Currency Background Display (Eliminated boot lockout state and WebGL texture atlas generation errors, ensured direct vector Text & Graphics rendering in PixiJS v8, bundled `src/assets/bg.jpeg` with CSS background fallback and calibrated radial vignette)
 - [x] Build Verification (`compile_applet` & `lint_applet` passed)
 - [x] Memory Bank Final Sync

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import moneyBg from '../assets/bg.jpeg';
 
 interface CurrencyBackdropProps {
   isRespin?: boolean;
@@ -6,12 +7,27 @@ interface CurrencyBackdropProps {
 }
 
 export const CurrencyBackdrop: React.FC<CurrencyBackdropProps> = ({ isRespin = false, isRedSpin = false }) => {
+  const [imgSrc, setImgSrc] = useState<string>(moneyBg || '/bg.jpeg');
+
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden select-none bg-black">
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden select-none bg-[#051c0d]"
+      style={{
+        backgroundImage: `url(${imgSrc}), url('/bg.jpeg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       {/* App Background Image */}
       <img
-        src="/bg.jpeg"
-        alt=""
+        src={imgSrc}
+        onError={() => {
+          if (imgSrc !== '/bg.jpeg') {
+            setImgSrc('/bg.jpeg');
+          }
+        }}
+        alt="Money Currency Backdrop"
         className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
         aria-hidden="true"
       />
@@ -28,14 +44,14 @@ export const CurrencyBackdrop: React.FC<CurrencyBackdropProps> = ({ isRespin = f
         </>
       )}
 
-      {/* Subtle depth vignette */}
+      {/* Subtle depth vignette with valid CSS radial gradient */}
       <div
-        className={`absolute inset-0 transition-colors duration-300 ${
+        className={`absolute inset-0 transition-colors duration-300 pointer-events-none ${
           isRedSpin
-            ? 'bg-radial from-transparent via-[#FF0033]/15 to-black/80'
+            ? 'bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(255,0,51,0.15)_60%,rgba(0,0,0,0.85)_100%)]'
             : isRespin
-            ? 'bg-radial from-transparent via-[#bc13fe]/15 to-black/75'
-            : 'bg-radial from-transparent via-black/20 to-black/60'
+            ? 'bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(188,19,254,0.15)_60%,rgba(0,0,0,0.8)_100%)]'
+            : 'bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.15)_50%,rgba(0,0,0,0.55)_100%)]'
         }`}
       />
     </div>

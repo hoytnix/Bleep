@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Denomination, TurboMode, spinRound, SpinResult, WheelWedge, WHEEL_WEDGES, BET_CONFIGS } from './game/math';
+import { Denomination, TurboMode, spinRound, StakeRgsPayload, SpinResult, WheelWedge, WHEEL_WEDGES, BET_CONFIGS } from './game/math';
 import { PixiSlotEngine } from './game/PixiSlotEngine';
 import { soundEngine } from './game/AudioEngine';
 import { CurrencyBackdrop } from './components/CurrencyBackdrop';
@@ -15,6 +15,7 @@ import { AutoplayDrawer, AutoplayConfig } from './components/AutoplayDrawer';
 const formatStop = (s?: string) => (!s || s === 'BLANK' || s === '—' || s === '-' ? '-' : s);
 
 export default function App() {
+  const [isEngineReady, setIsEngineReady] = useState<boolean>(true);
   // Credits-based meters (Dynamic Bet Credits based on selected denomination)
   const [balanceCredits, setBalanceCredits] = useState<number>(5000);
   const [displayedWinCredits, setDisplayedWinCredits] = useState<number>(210);
@@ -74,7 +75,7 @@ export default function App() {
     totalCreditsWon: number;
     resolve: () => void;
   } | null>(null);
-  const activeSpinResultRef = useRef<SpinResult | null>(null);
+  const activeSpinResultRef = useRef<StakeRgsPayload | null>(null);
 
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PixiSlotEngine | null>(null);
@@ -183,7 +184,11 @@ export default function App() {
       const isForcedRedSpin = forceRedSpin === true;
       const isForcedRespin = forceRespin === true;
       const isForcedNearMissWheel = forceNearMissWheel === true;
-      if (isSpinning || activeWheelBonus || balanceCredits < betCredits || !engineRef.current) {
+      if (
+        isSpinning ||
+        activeWheelBonus ||
+        balanceCredits < betCredits
+      ) {
         if (balanceCredits < betCredits && autoplayRunningRef.current) {
           handleStopAutoplay('Insufficient balance to spin');
         }
@@ -223,24 +228,26 @@ export default function App() {
         });
       }
 
-      // Generate outcome from Stake RGS Math Model (or forced triggers for verification)
-      let result: SpinResult;
+      // Generate outcome asynchronously from Stake RGS Math Model (or forced triggers for verification)
+      let result: StakeRgsPayload;
       if (isForcedNearMissWheel) {
-        result = spinRound(betDenom, false, false, false, true);
+        result = await spinRound(betDenom, false, false, false, true);
       } else if (isForcedWheel) {
-        result = spinRound(betDenom, false, false, true, false);
+        result = await spinRound(betDenom, false, false, true, false);
       } else if (isForcedRedSpin) {
-        result = spinRound(betDenom, true, false, false, false);
+        result = await spinRound(betDenom, true, false, false, false);
       } else if (isForcedRespin) {
-        result = spinRound(betDenom, false, true, false, false);
+        result = await spinRound(betDenom, false, true, false, false);
       } else {
-        result = spinRound(betDenom);
+        result = await spinRound(betDenom);
       }
 
       activeSpinResultRef.current = result;
 
       // Execute animation in PixiSlotEngine (with active turboMode)
-      await engineRef.current.spin(result, turboMode);
+      if (engineRef.current) {
+        await engineRef.current.spin(result, turboMode);
+      }
 
       // Final balance after won credits
       const finalRoundBalance = newDeductedBalance + result.creditsWon;
@@ -539,8 +546,33 @@ export default function App() {
       },
     });
 
-    engineRef.current = engine;
-    engine.init(container);
+    let isCancelled = false;
+
+    const setupEngine = async () => {
+      try {
+        // Explicit Font Readiness Gate before mounting Pixi slot application
+        if (typeof document !== 'undefined' && 'fonts' in document) {
+          await Promise.allSettled([
+            document.fonts.load('1em GnuMICR'),
+            document.fonts.load('1em "MICR E-13B"'),
+            document.fonts.ready,
+          ]);
+        }
+
+        if (isCancelled) return;
+
+        engineRef.current = engine;
+        await engine.init(container);
+      } catch (err) {
+        console.warn('Engine init warning:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsEngineReady(true);
+        }
+      }
+    };
+
+    setupEngine();
 
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
@@ -564,6 +596,7 @@ export default function App() {
     resizeObserver.observe(container);
 
     return () => {
+      isCancelled = true;
       window.removeEventListener('resize', checkMobile);
       resizeObserver.disconnect();
       if (autoplayTimeoutRef.current !== null) {
@@ -577,6 +610,7 @@ export default function App() {
   // Keyboard Shortcuts (Space/Enter: Spin/Stop, A: Autoplay Drawer/Stop, W: Test Wheel, 1-4: Denominations, M: Mute, P: Paytable, B: Bet)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isSpinning) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (activeWheelBonus) return; // Allow overlay to handle its own key actions
 
@@ -639,6 +673,7 @@ export default function App() {
     handleCycleTurbo,
     handleStopAutoplay,
     activeWheelBonus,
+    isSpinning,
   ]);
 
   return (

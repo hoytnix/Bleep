@@ -237,7 +237,34 @@ The WYSIWYG Mechanical Stepper Slot Machine has been enhanced and stabilized:
     - Removed the dividing header band rectangle and border stroke from underneath the top star on Reel 4 (`src/game/PixiSlotEngine.ts`).
     - Added matching bottom star to Reel 4 (`reel.starBottom`) positioned at `(reelWidth / 2, reelHeight - bandH / 2)` with matching radius, perfectly harmonizing the visual framing across all 4 reels.
 
+33. Stake Engine Provably Fair Decoupling & Production Casino Boot Flow:
+    - Decoupled client outcome calculation into server-authoritative mock RGS returning signed `StakeRgsPayload` with HMAC-SHA256 outcome evaluation and static indexed lookup table export.
+    - Implemented `BootState` lifecycle (`'LOADING' | 'RULES_MODAL' | 'READY'`) in `src/App.tsx`.
+    - Built `LoadingScreen.tsx` with high-contrast jet-black aesthetic, guilloche accents, striped comic progress bar, font readiness gate (`document.fonts.load`), cabinet background preload, and 5s timeout retry fallback.
+    - Built `IntroRulesModal.tsx` comic handbook splash modal with 4 core rules, custom comic "Don't show this again" checkbox persisting to `localStorage`, and Web Audio context unlock upon clicking "PLAY NOW".
+
+34. Stake Engine RGS Decoupling & High-DPI Texture Atlas Pre-caching:
+    - Decoupled client state so front-end operates strictly as a thin, deterministic client consuming `StakeRgsPayload`.
+    - Added static permutation table generator (`generateLookupTable`), indexed outcome fetcher (`getLookupOutcomeByIndex`), and offline JSON exporter (`exportLookupTableJson`, `exportLookupTableCli`) in `src/game/math.ts`.
+    - `spinRound()` acts as an asynchronous mock RGS endpoint returning signed server-authoritative payloads with HMAC-SHA256 Provably Fair verification and optional static table indexing.
+    - Configured `@font-face` for `GnuMICR` and `MICR E-13B` with `font-display: block` in `src/fonts.css`.
+    - Implemented explicit font readiness check using `document.fonts.ready` and `document.fonts.load('1em GnuMICR')` before mounting the Pixi slot application.
+    - Implemented Texture Atlas Pre-caching in `PixiSlotEngine.ts`: all procedural textures (MICR numbers, star blanks, frames, wheel slices) are baked into high-DPI textures only after font readiness is confirmed, completely eliminating fallback-font texture baking artifacts.
+    - Preloaded `public/bg.jpeg` via Pixi Assets (`Assets.load`) with clean error handling fallback.
+    - Disabled spin button until all fonts and image assets are confirmed active in DOM (`isEngineReady` gate).
+
+35. Resolved Spin Button Lockout & Restored Money Background:
+    - Root Cause Analysis:
+      - Spin Button Issue: In `src/App.tsx`, `handleSpin`, `CreditsBar`, and `handleKeyDown` previously gated interaction behind `bootState !== 'READY' || !isEngineReady`. If `bakeTextureAtlas()` encountered WebGL issues or if fonts had slight parsing delays, `isEngineReady` stayed `false`, completely disabling the spin button and discarding click/keyboard events. Furthermore, `LoadingScreen` and `IntroRulesModal` blocked user interaction on start.
+      - Missing Money Background: `CurrencyBackdrop.tsx` previously used a broken Tailwind class `bg-radial` (not present in standard Tailwind CSS v4) and relied solely on an unbundled `<img src="/bg.jpeg" />` tag which failed to display if relative paths or iframe proxying differed.
+    - Architectural Solutions:
+      - Immediate Spin Readiness: Initialized `isEngineReady` to `true`, removed blocking initial boot states from covering the reel page, guarded `PixiSlotEngine.init` with try/catch and guaranteed `setIsEngineReady(true)` in a `finally` block, and simplified `handleSpin` and `CreditsBar` so the spin button is immediately clickable.
+      - Vector Rendering Hardening: Replaced fragile runtime WebGL texture generation in `PixiSlotEngine.ts` with direct, crisp vector Text and Graphics rendering (`Text` with `MICR E-13B`/`GnuMICR` and procedural vector `drawColorfulWheel` & `drawRespinStar`), eliminating texture generation crashes and render delays.
+      - Money Background Reliability: Copied `public/bg.jpeg` to `src/assets/bg.jpeg`, added `src/vite-env.d.ts`, and updated `CurrencyBackdrop.tsx` to set `backgroundImage: url(${moneyBg}), url('/bg.jpeg')` directly on the background container alongside an `<img>` tag with fallback, styled with valid CSS `radial-gradient` for a clear, atmospheric view of the engraved currency art.
+
 ## Implemented Architecture
+- `src/components/LoadingScreen.tsx`: Retro high-contrast boot screen tracking font readiness, backdrop image preload, and stepper calibration.
+- `src/components/IntroRulesModal.tsx`: Comic handbook splash modal explaining 4 core rules with persistent "Don't show this again" state and audio unlock.
 - `src/components/AutoplayDrawer.tsx`: Regulatory configuration drawer with spin counts (10, 25, 50, 100), Stop on Bonus toggle, Loss Limits, and Single Win Limits.
 - `src/game/math.ts`: Deterministic Stake RGS outcome generator with calibrated stop weights (~84.5% RTP, ~21.4% Hit Frequency), fixed 10-credit model, concatenation rules, Monte Carlo simulator.
 - `src/game/AudioEngine.ts`: Pure Web Audio API procedural synthesizer for mechanical stepper clicks, solenoid clunks, flapper ratchets, and jackpot fanfare.

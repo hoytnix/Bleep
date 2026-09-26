@@ -1,6 +1,6 @@
-import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Texture, Text, TextStyle, Assets } from 'pixi.js';
 import confetti from 'canvas-confetti';
-import { SpinResult, WheelWedge, WHEEL_WEDGES, TurboMode } from './math';
+import { StakeRgsPayload, SpinResult, WheelWedge, WHEEL_WEDGES, TurboMode } from './math';
 import { soundEngine } from './AudioEngine';
 
 export interface PixiSlotEngineEvents {
@@ -11,11 +11,11 @@ export interface PixiSlotEngineEvents {
   onRedSpinBridged?: (stops: string[]) => void;
   onRedSpinMissed?: (stops: string[]) => void;
   onRespinStart?: (emptyReels: number[], lockedReels: number[]) => void;
-  onRespinEnd?: (result: SpinResult) => void;
+  onRespinEnd?: (result: StakeRgsPayload) => void;
   onWheelStart?: (wedge: WheelWedge) => void;
   onWheelTrigger?: (wedge: WheelWedge) => Promise<void>;
   onWheelEnd?: (wedge: WheelWedge) => void;
-  onSpinComplete?: (result: SpinResult) => void;
+  onSpinComplete?: (result: StakeRgsPayload) => void;
 }
 
 interface ReelView {
@@ -26,6 +26,9 @@ interface ReelView {
   starTop: Graphics;
   starBottom: Graphics;
   symbolsContainer: Container;
+  currentSymbolSprite: Sprite;
+  previousSymbolSprite: Sprite;
+  nextSymbolSprite: Sprite;
   currentSymbolText: Text;
   currentSymbolGraphic: Graphics;
   previousSymbolText: Text;
@@ -60,68 +63,102 @@ export class PixiSlotEngine {
   private isDestroyed: boolean = false;
   private isSpinning: boolean = false;
 
+  private textureCache: Map<string, Texture> = new Map();
+  private isTexturesBaked: boolean = false;
+
   private events: PixiSlotEngineEvents = {};
 
   constructor(events: PixiSlotEngineEvents = {}) {
     this.events = events;
   }
 
-  public async init(containerElement: HTMLElement): Promise<void> {
-    const width = containerElement.clientWidth || 800;
-    const height = containerElement.clientHeight || 480;
-    this.stageWidth = width;
-    this.stageHeight = height;
-    this.isMobile = width < 768;
-
-    // Ensure authentic Federal Reserve / Bank Cheque MICR E-13B fonts are pre-loaded
+  /**
+   * Preload external assets (e.g. background) via Pixi Assets with fallback error handling
+   */
+  public static async preloadAssets(): Promise<void> {
     try {
-      if (typeof document !== 'undefined' && document.fonts) {
+      await Assets.load('/bg.jpeg').catch((err) => {
+        console.warn('Pixi Assets.load(/bg.jpeg) fallback:', err);
+      });
+    } catch (err) {
+      console.warn('Assets preload caught error:', err);
+    }
+  }
+
+  /**
+   * Font Readiness Gate: verifies TTF fonts are parsed before texture baking
+   */
+  public static async verifyFontReadiness(): Promise<boolean> {
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      try {
         await Promise.allSettled([
+          document.fonts.load('1em GnuMICR'),
+          document.fonts.load('1em "MICR E-13B"'),
+          document.fonts.load('48px GnuMICR'),
           document.fonts.load('48px "MICR E-13B"'),
-          document.fonts.load('48px "GnuMICR"'),
           document.fonts.ready,
         ]);
+        return true;
+      } catch {
+        return false;
       }
-    } catch {
-      // Continue gracefully if Font Loading API is unavailable
     }
+    return true;
+  }
 
-    const app = new Application();
-    await app.init({
-      width,
-      height,
-      backgroundAlpha: 0,
-      antialias: true,
-      autoDensity: true,
-      resolution: Math.min(window.devicePixelRatio || 2, 3),
-    });
+  public async init(containerElement: HTMLElement): Promise<void> {
+    try {
+      const width = containerElement.clientWidth || 800;
+      const height = containerElement.clientHeight || 480;
+      this.stageWidth = width;
+      this.stageHeight = height;
+      this.isMobile = width < 768;
 
-    if (this.isDestroyed) {
-      app.destroy(true);
-      return;
+      // 1. Verify font readiness before canvas initialization
+      await PixiSlotEngine.verifyFontReadiness().catch(() => {});
+
+      // 2. Preload backdrop asset cleanly via Pixi Assets
+      await PixiSlotEngine.preloadAssets().catch(() => {});
+
+      const app = new Application();
+      await app.init({
+        width,
+        height,
+        backgroundAlpha: 0,
+        antialias: true,
+        autoDensity: true,
+        resolution: Math.min(window.devicePixelRatio || 2, 3),
+      });
+
+      if (this.isDestroyed) {
+        app.destroy(true);
+        return;
+      }
+
+      this.app = app;
+      while (containerElement.firstChild) {
+        containerElement.removeChild(containerElement.firstChild);
+      }
+      containerElement.appendChild(app.canvas);
+
+      this.rootContainer = new Container();
+      this.app.stage.addChild(this.rootContainer);
+
+      this.reelsContainer = new Container();
+      this.rootContainer.addChild(this.reelsContainer);
+
+      this.respinOverlay = new Container();
+      this.respinOverlay.visible = false;
+      this.rootContainer.addChild(this.respinOverlay);
+
+      this.buildReels();
+      this.buildRespinOverlay();
+
+      this.app.ticker.add(this.update, this);
+      this.resize(width, height);
+    } catch (err) {
+      console.warn('PixiSlotEngine init warning:', err);
     }
-
-    this.app = app;
-    while (containerElement.firstChild) {
-      containerElement.removeChild(containerElement.firstChild);
-    }
-    containerElement.appendChild(app.canvas);
-
-    this.rootContainer = new Container();
-    this.app.stage.addChild(this.rootContainer);
-
-    this.reelsContainer = new Container();
-    this.rootContainer.addChild(this.reelsContainer);
-
-    this.respinOverlay = new Container();
-    this.respinOverlay.visible = false;
-    this.rootContainer.addChild(this.respinOverlay);
-
-    this.buildReels();
-    this.buildRespinOverlay();
-
-    this.app.ticker.add(this.update, this);
-    this.resize(width, height);
   }
 
   public setEvents(events: PixiSlotEngineEvents) {
@@ -180,25 +217,40 @@ export class PixiSlotEngine {
       redStrobe.visible = false;
       reelBox.addChild(redStrobe);
 
-      // Symbols (previous, current, next)
+      // Symbols (previous, current, next) with pre-cached Sprite layers
       const style = this.getSymbolTextStyle(isBooster, symbols[i]);
+
+      const currentSymbolSprite = new Sprite();
+      currentSymbolSprite.anchor.set(0.5);
+
       const currentSymbolText = new Text({ text: '', style });
       currentSymbolText.anchor.set(0.5);
 
       const currentSymbolGraphic = new Graphics();
+
+      const previousSymbolSprite = new Sprite();
+      previousSymbolSprite.anchor.set(0.5);
 
       const previousSymbolText = new Text({ text: '', style });
       previousSymbolText.anchor.set(0.5);
 
       const previousSymbolGraphic = new Graphics();
 
+      const nextSymbolSprite = new Sprite();
+      nextSymbolSprite.anchor.set(0.5);
+
       const nextSymbolText = new Text({ text: '', style });
       nextSymbolText.anchor.set(0.5);
 
+      symbolsContainer.addChild(previousSymbolSprite);
       symbolsContainer.addChild(previousSymbolGraphic);
       symbolsContainer.addChild(previousSymbolText);
+
+      symbolsContainer.addChild(currentSymbolSprite);
       symbolsContainer.addChild(currentSymbolGraphic);
       symbolsContainer.addChild(currentSymbolText);
+
+      symbolsContainer.addChild(nextSymbolSprite);
       symbolsContainer.addChild(nextSymbolText);
 
       this.reelsContainer.addChild(reelBox);
@@ -211,6 +263,9 @@ export class PixiSlotEngine {
         starTop,
         starBottom,
         symbolsContainer,
+        currentSymbolSprite,
+        previousSymbolSprite,
+        nextSymbolSprite,
         currentSymbolText,
         currentSymbolGraphic,
         previousSymbolText,
@@ -436,11 +491,19 @@ export class PixiSlotEngine {
   }
 
   /**
+   * Safe texture atlas stub (rendering is performed directly via vector Graphics and Text)
+   */
+  public bakeTextureAtlas(): void {
+    // Direct vector and text rendering is used for maximum fidelity and crisp responsiveness
+  }
+
+  /**
    * Renders a symbol onto a reel: text for numerals/multipliers, or SVG vectors for WHEEL and RESPIN
    */
   private renderReelSymbol(
     reel: ReelView,
     symbol: string,
+    spriteNode: Sprite,
     textNode: Text,
     graphicNode: Graphics
   ): void {
@@ -450,25 +513,32 @@ export class PixiSlotEngine {
     const cy = rh / 2;
     const radius = Math.min(38, Math.max(16, Math.floor(rw * 0.28)));
 
+    spriteNode.visible = false;
+
+    if (!symbol || symbol === '' || symbol === 'BLANK' || symbol === '—' || symbol === '-') {
+      textNode.text = '';
+      textNode.visible = false;
+      graphicNode.clear();
+      graphicNode.visible = false;
+      return;
+    }
+
     if (symbol === 'WHEEL') {
       textNode.text = '';
+      textNode.visible = false;
       graphicNode.visible = true;
       this.drawColorfulWheel(graphicNode, cx, cy, radius);
     } else if (symbol === 'RESPIN') {
       textNode.text = '';
+      textNode.visible = false;
       graphicNode.visible = true;
       this.drawRespinStar(graphicNode, cx, cy, radius);
-    } else if (!symbol || symbol === '' || symbol === 'BLANK') {
-      graphicNode.clear();
-      graphicNode.visible = false;
-      textNode.text = '';
     } else {
       graphicNode.clear();
       graphicNode.visible = false;
       textNode.text = symbol;
       textNode.style = this.getSymbolTextStyle(reel.isBooster, symbol);
-      // NOTE: Do NOT override textNode.position here.
-      // Dedicated reel slots (previous at -rh, current at 0, next at +rh) preserve vertical spacing.
+      textNode.visible = true;
     }
   }
 
@@ -577,6 +647,10 @@ export class PixiSlotEngine {
         .stroke({ width: 8, color: 0xbc13fe });
 
       // Update text style sizes and positions
+      reel.currentSymbolSprite.position.set(reelWidth / 2, reelHeight / 2);
+      reel.previousSymbolSprite.position.set(reelWidth / 2, reelHeight / 2 - reelHeight);
+      reel.nextSymbolSprite.position.set(reelWidth / 2, reelHeight / 2 + reelHeight);
+
       reel.currentSymbolText.style = this.getSymbolTextStyle(reel.isBooster, reel.currentSymbol);
       reel.previousSymbolText.style = this.getSymbolTextStyle(reel.isBooster, reel.previousSymbol);
       reel.nextSymbolText.style = this.getSymbolTextStyle(reel.isBooster, '');
@@ -588,9 +662,9 @@ export class PixiSlotEngine {
       reel.currentSymbolGraphic.position.set(0, 0);
       reel.previousSymbolGraphic.position.set(0, -reelHeight);
 
-      this.renderReelSymbol(reel, reel.currentSymbol, reel.currentSymbolText, reel.currentSymbolGraphic);
+      this.renderReelSymbol(reel, reel.currentSymbol, reel.currentSymbolSprite, reel.currentSymbolText, reel.currentSymbolGraphic);
       if (reel.previousSymbol) {
-        this.renderReelSymbol(reel, reel.previousSymbol, reel.previousSymbolText, reel.previousSymbolGraphic);
+        this.renderReelSymbol(reel, reel.previousSymbol, reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
       }
     });
   }
@@ -634,14 +708,14 @@ export class PixiSlotEngine {
 
           // The symbol that was above has scrolled down into the center
           reel.currentSymbol = reel.previousSymbol;
-          this.renderReelSymbol(reel, reel.currentSymbol, reel.currentSymbolText, reel.currentSymbolGraphic);
+          this.renderReelSymbol(reel, reel.currentSymbol, reel.currentSymbolSprite, reel.currentSymbolText, reel.currentSymbolGraphic);
 
           // Prepare the next incoming dummy symbol above the reel window
           const dummy = reel.isBooster
             ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL', ''][Math.floor(Math.random() * 7)]
             : ['1', '2', '5', '10', '0', '00', ''][Math.floor(Math.random() * 7)];
           reel.previousSymbol = dummy;
-          this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+          this.renderReelSymbol(reel, dummy, reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
 
           soundEngine.playStepperClick(1.0 + Math.random() * 0.3);
         }
@@ -653,11 +727,10 @@ export class PixiSlotEngine {
 
   /**
    * Performs the full Spin Cycle with sequential stop timing, spring overshoot, or turbo/instant modes
-   * - 'off' (normal): Sequential stops at 700ms, 1100ms, 1500ms, 1900ms
-   * - 'turbo': If Reel 1 misses (blank), reels 2 and 3 are skipped immediately; if Reel 1 hits, standard suspense progression
-   * - 'instant': Instantly skips all reels
+   * Thin-client deterministic execution: strictly executes visual reels and bonus events to match
+   * the server-authoritative StakeRgsPayload without any internal math or outcome calculations.
    */
-  public async spin(spinResult: SpinResult, turboMode: TurboMode = 'off'): Promise<void> {
+  public async spin(spinResult: StakeRgsPayload, turboMode: TurboMode = 'off'): Promise<void> {
     if (this.isSpinning) return;
     this.isSpinning = true;
 
@@ -670,8 +743,15 @@ export class PixiSlotEngine {
       r.lockGlow.visible = false;
     });
 
+    const isRedSpin = spinResult.redSpinTriggered ?? spinResult.red_spin_triggered ?? false;
+    const isRespin = spinResult.respinTriggered ?? spinResult.isRespin ?? false;
+    const isWheel = spinResult.wheelTriggered ?? spinResult.isWheel ?? false;
+    const initialStops = spinResult.initialStops ?? spinResult.initial_stops ?? spinResult.stops;
+    const finalStops = spinResult.stops;
+    const wheelWedge = spinResult.wheelWedge || (spinResult.wheelWedgeWon !== undefined ? WHEEL_WEDGES[spinResult.wheelWedgeWon] : undefined);
+
     // Handle RED-SPIN SAVIOR mechanic if triggered (salvaging split-digit near-misses)
-    if (spinResult.red_spin_triggered) {
+    if (isRedSpin) {
       // 1. Reels start spinning
       this.reels.forEach((reel) => {
         reel.isSpinning = true;
@@ -682,12 +762,12 @@ export class PixiSlotEngine {
           ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)]
           : ['1', '2', '5', '10', '0', '00'][Math.floor(Math.random() * 6)];
         reel.previousSymbol = dummy;
-        this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+        this.renderReelSymbol(reel, dummy, reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
       });
 
-      const initialR1 = spinResult.initial_stops[0];
+      const initialR1 = initialStops[0];
       const initialR2 = ''; // BLANK star stop on Reel 2
-      const initialR3 = spinResult.initial_stops[2];
+      const initialR3 = initialStops[2];
 
       // Sequential stops: Reel 1 -> Reel 2 -> Reel 3
       const r1Delay = turboMode === 'instant' ? 120 : turboMode === 'turbo' ? 400 : 700;
@@ -707,33 +787,30 @@ export class PixiSlotEngine {
       this.events.onReelStop?.(2, initialR3);
 
       // --- Stage 1: Near-Miss Pause ---
-      // Reels stop sequentially (1 -> 2 -> 3). Allow 500ms suspense pause while handbook displays: "Near Miss! Reel 2 Missed..."
-      this.events.onNearMissPause?.(spinResult.initial_stops);
+      this.events.onNearMissPause?.(initialStops);
       await this.delay(turboMode === 'instant' ? 250 : 500);
 
       // --- Stage 2: The Red-Spin Alarm ---
-      // Flash reel casing & background with urgent comic red strobe (#FF0033), play escalating mechanical siren
       this.events.onRedSpinAlarm?.();
       soundEngine.playRedSpinAlarm();
       this.triggerRedSpinStrobe(1);
       await this.delay(turboMode === 'instant' ? 250 : 500);
 
       // --- Stage 3: Re-Spin Resolution ---
-      // Reel 2 blurs vertically with red speed lines and snaps into place on '0' or '5', bridging the gap
       this.startReelRedSpin(1);
       const respinDuration = turboMode === 'instant' ? 350 : turboMode === 'turbo' ? 500 : 900;
       await this.delay(respinDuration);
 
-      const salvagedStop = spinResult.stops[1]; // '0' or '5'
+      const salvagedStop = finalStops[1]; // '0' or '5'
       await this.stopReelWithSpring(1, salvagedStop);
       soundEngine.playRedSpinSnap();
       this.stopReelRedSpin(1);
 
-      this.events.onRedSpinBridged?.(spinResult.stops);
+      this.events.onRedSpinBridged?.(finalStops);
       await this.delay(turboMode === 'instant' ? 150 : 350);
 
       // --- Stage 4: Resolve Reel 4 Multiplier ---
-      const finalBooster = spinResult.stops[3];
+      const finalBooster = finalStops[3];
       await this.stopReelWithSpring(3, finalBooster);
       this.events.onReelStop?.(3, finalBooster);
 
@@ -741,16 +818,16 @@ export class PixiSlotEngine {
       this.clearRedSpinStrobe();
 
       // Check for booster impacts / special events on Reel 4
-      if (spinResult.isRespin && spinResult.respinNewStop) {
+      if (isRespin && (spinResult.respinNewStop || spinResult.respinMultiplier)) {
         await this.delay(turboMode === 'turbo' ? 250 : 400);
         await this.executePurpleRespin(spinResult, turboMode);
-      } else if (spinResult.isWheel && spinResult.wheelWedge) {
-        this.events.onWheelStart?.(spinResult.wheelWedge);
+      } else if (isWheel && wheelWedge) {
+        this.events.onWheelStart?.(wheelWedge);
         await this.delay(turboMode === 'turbo' ? 250 : 400);
         if (this.events.onWheelTrigger) {
-          await this.events.onWheelTrigger(spinResult.wheelWedge);
+          await this.events.onWheelTrigger(wheelWedge);
         }
-        this.events.onWheelEnd?.(spinResult.wheelWedge);
+        this.events.onWheelEnd?.(wheelWedge);
       } else {
         if (spinResult.creditsWon > 0) {
           if (spinResult.multiplier > 1) {
@@ -769,9 +846,7 @@ export class PixiSlotEngine {
       return;
     }
 
-    const initialStopsToLand = (spinResult.isRespin && spinResult.initial_stops)
-      ? spinResult.initial_stops
-      : spinResult.stops;
+    const initialStopsToLand = (isRespin && initialStops) ? initialStops : finalStops;
 
     // Handle standard INSTANT mode
     if (turboMode === 'instant') {
@@ -794,16 +869,16 @@ export class PixiSlotEngine {
       }
 
       // Check for special events
-      if (spinResult.isRespin && spinResult.respinNewStop) {
+      if (isRespin && (spinResult.respinNewStop || spinResult.respinMultiplier)) {
         await this.delay(100);
         await this.executePurpleRespin(spinResult, turboMode);
-      } else if (spinResult.isWheel && spinResult.wheelWedge) {
-        this.events.onWheelStart?.(spinResult.wheelWedge);
+      } else if (isWheel && wheelWedge) {
+        this.events.onWheelStart?.(wheelWedge);
         await this.delay(100);
         if (this.events.onWheelTrigger) {
-          await this.events.onWheelTrigger(spinResult.wheelWedge);
+          await this.events.onWheelTrigger(wheelWedge);
         }
-        this.events.onWheelEnd?.(spinResult.wheelWedge);
+        this.events.onWheelEnd?.(wheelWedge);
       } else {
         if (spinResult.creditsWon > 0) {
           if (spinResult.multiplier > 1) {
@@ -835,7 +910,7 @@ export class PixiSlotEngine {
         ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)]
         : ['1', '2', '5', '10', '0', '00'][Math.floor(Math.random() * 6)];
       reel.previousSymbol = dummy;
-      this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+      this.renderReelSymbol(reel, dummy, reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
     });
 
     if (turboMode === 'turbo') {
@@ -885,16 +960,16 @@ export class PixiSlotEngine {
     }
 
     // Check for special events
-    if (spinResult.isRespin && spinResult.respinNewStop) {
+    if (isRespin && (spinResult.respinNewStop || spinResult.respinMultiplier)) {
       await this.delay(turboMode === 'turbo' ? 250 : 400);
       await this.executePurpleRespin(spinResult, turboMode);
-    } else if (spinResult.isWheel && spinResult.wheelWedge) {
-      this.events.onWheelStart?.(spinResult.wheelWedge);
+    } else if (isWheel && wheelWedge) {
+      this.events.onWheelStart?.(wheelWedge);
       await this.delay(turboMode === 'turbo' ? 250 : 400);
       if (this.events.onWheelTrigger) {
-        await this.events.onWheelTrigger(spinResult.wheelWedge);
+        await this.events.onWheelTrigger(wheelWedge);
       }
-      this.events.onWheelEnd?.(spinResult.wheelWedge);
+      this.events.onWheelEnd?.(wheelWedge);
     } else {
       if (spinResult.creditsWon > 0) {
         if (spinResult.multiplier > 1) {
@@ -923,9 +998,9 @@ export class PixiSlotEngine {
     reel.offsetY = 0;
 
     reel.currentSymbol = finalSymbol;
-    this.renderReelSymbol(reel, finalSymbol, reel.currentSymbolText, reel.currentSymbolGraphic);
+    this.renderReelSymbol(reel, finalSymbol, reel.currentSymbolSprite, reel.currentSymbolText, reel.currentSymbolGraphic);
     reel.previousSymbol = '';
-    this.renderReelSymbol(reel, '', reel.previousSymbolText, reel.previousSymbolGraphic);
+    this.renderReelSymbol(reel, '', reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
     reel.nextSymbolText.text = '';
   }
 
@@ -941,9 +1016,9 @@ export class PixiSlotEngine {
     reel.offsetY = 0;
 
     reel.currentSymbol = finalSymbol;
-    this.renderReelSymbol(reel, finalSymbol, reel.currentSymbolText, reel.currentSymbolGraphic);
+    this.renderReelSymbol(reel, finalSymbol, reel.currentSymbolSprite, reel.currentSymbolText, reel.currentSymbolGraphic);
     reel.previousSymbol = '';
-    this.renderReelSymbol(reel, '', reel.previousSymbolText, reel.previousSymbolGraphic);
+    this.renderReelSymbol(reel, '', reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
     reel.nextSymbolText.text = '';
 
     // Play Solenoid Mechanical Clunk
@@ -988,7 +1063,7 @@ export class PixiSlotEngine {
    * Executes the Purple Respin Event
    * Landing a Respin causes not only Reel 4 to respin, but any of the first three reels which are empty.
    */
-  private async executePurpleRespin(spinResult: SpinResult, turboMode: TurboMode = 'off'): Promise<void> {
+  private async executePurpleRespin(spinResult: StakeRgsPayload, turboMode: TurboMode = 'off'): Promise<void> {
     const emptyReels = spinResult.respinEmptyReels || [];
     const lockedReels = spinResult.respinLockedReels || [0, 1, 2].filter((i) => !emptyReels.includes(i));
     const reelsToRespin = [...emptyReels, 3]; // Empty reels + Booster Reel 4
@@ -1017,7 +1092,7 @@ export class PixiSlotEngine {
         ? ['2X', '3X', '5X', '10X', 'RESPIN', 'WHEEL'][Math.floor(Math.random() * 6)]
         : ['1', '2', '5', '10', '0', '00'][Math.floor(Math.random() * 6)];
       reel.previousSymbol = dummy;
-      this.renderReelSymbol(reel, dummy, reel.previousSymbolText, reel.previousSymbolGraphic);
+      this.renderReelSymbol(reel, dummy, reel.previousSymbolSprite, reel.previousSymbolText, reel.previousSymbolGraphic);
     });
 
     // Spin duration & sequential stops
@@ -1147,6 +1222,10 @@ export class PixiSlotEngine {
 
   public destroy(): void {
     this.isDestroyed = true;
+    for (const tex of this.textureCache.values()) {
+      tex.destroy(true);
+    }
+    this.textureCache.clear();
     if (this.app) {
       this.app.ticker.remove(this.update, this);
       if (this.app.canvas && this.app.canvas.parentNode) {

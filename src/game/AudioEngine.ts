@@ -21,6 +21,17 @@ class SoundEngine {
     return this.ctx;
   }
 
+  public async init(): Promise<void> {
+    const ctx = this.getContext();
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+  }
+
+  public async resume(): Promise<void> {
+    return this.init();
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
   }
@@ -294,6 +305,14 @@ class SoundEngine {
   }
 
   /**
+   * Heavy mechanical slot spin lever pull with dual solenoid impact
+   */
+  public playSpinLeverPull() {
+    this.playButtonPress();
+    this.playSolenoidClunk(0);
+  }
+
+  /**
    * Escalating Mechanical Siren / Warning Buzzer for Red-Spin Savior
    * Urgent comic klaxon with rising mechanical sweeps and staccato warning harmonics
    */
@@ -382,3 +401,4 @@ class SoundEngine {
 }
 
 export const soundEngine = new SoundEngine();
+export const AudioEngine = soundEngine;
