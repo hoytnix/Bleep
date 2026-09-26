@@ -1,10 +1,13 @@
 import React from 'react';
+import { SpinState } from '../game/math';
 
 interface CreditsBarProps {
   balanceCredits: number;
   winCredits: number;
   betCredits: number;
   isSpinning: boolean;
+  spinState?: SpinState;
+  currencySymbol?: string;
   isMobile: boolean;
   isAutoplayRunning?: boolean;
   autoplaySpinsRemaining?: number;
@@ -18,6 +21,8 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
   winCredits,
   betCredits,
   isSpinning,
+  spinState = 'IDLE',
+  currencySymbol = '$',
   isMobile,
   isAutoplayRunning = false,
   autoplaySpinsRemaining = 0,
@@ -25,12 +30,14 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
   onStopAutoplay,
   onRefill,
 }) => {
-  const isSpinDisabled = !isAutoplayRunning && (isSpinning || balanceCredits < betCredits);
+  const isLockedByState = spinState !== 'IDLE';
+  const isSpinDisabled = !isAutoplayRunning && (isSpinning || isLockedByState || balanceCredits < betCredits);
 
   const handleButtonClick = () => {
     if (isAutoplayRunning && onStopAutoplay) {
       onStopAutoplay();
     } else {
+      if (isSpinDisabled) return;
       onSpin();
     }
   };
@@ -48,7 +55,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
             </span>
             <div className="flex items-center gap-1.5 ml-1 min-w-0">
               <span className="text-xs sm:text-sm font-black text-[#FFD700] font-micr tracking-tight truncate">
-                ${balanceCredits.toLocaleString()}
+                {currencySymbol}{balanceCredits.toLocaleString()}
               </span>
               {balanceCredits < betCredits && onRefill && (
                 <button
@@ -72,7 +79,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
-              ${winCredits.toLocaleString()}
+              {currencySymbol}{winCredits.toLocaleString()}
             </span>
           </div>
 
@@ -82,7 +89,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BET:
             </span>
             <span className="text-xs sm:text-sm font-black text-[#FFD700] font-micr tracking-tight ml-1 truncate">
-              ${betCredits.toLocaleString()}
+              {currencySymbol}{betCredits.toLocaleString()}
             </span>
           </div>
         </div>
@@ -95,14 +102,14 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BALANCE:
             </span>
             <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-micr tracking-tight">
-              ${balanceCredits.toLocaleString()}
+              {currencySymbol}{balanceCredits.toLocaleString()}
             </span>
             {balanceCredits < betCredits && onRefill && (
               <button
                 type="button"
                 onClick={onRefill}
                 className="px-2 py-0.5 rounded bg-lime-400 hover:bg-lime-300 text-black font-black text-xs uppercase tracking-wider font-comic cursor-pointer animate-pulse shadow-sm"
-                title="Refill +$2,500"
+                title="Refill"
               >
                 +REFILL
               </button>
@@ -119,7 +126,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
                 winCredits > 0 ? 'text-[#39FF14] animate-pulse' : 'text-[#FFD700]'
               }`}
             >
-              ${winCredits.toLocaleString()}
+              {currencySymbol}{winCredits.toLocaleString()}
             </span>
           </div>
 
@@ -129,7 +136,7 @@ export const CreditsBar: React.FC<CreditsBarProps> = ({
               BET:
             </span>
             <span className="text-sm sm:text-lg md:text-xl font-black text-[#FFD700] font-micr tracking-tight">
-              ${betCredits.toLocaleString()}
+              {currencySymbol}{betCredits.toLocaleString()}
             </span>
           </div>
         </div>

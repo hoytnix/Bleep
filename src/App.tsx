@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Denomination, TurboMode, spinRound, StakeRgsPayload, SpinResult, WheelWedge, WHEEL_WEDGES, BET_CONFIGS } from './game/math';
+import {
+  Denomination,
+  TurboMode,
+  SpinState,
+  spinRound,
+  StakeRgsPayload,
+  SpinResult,
+  WheelWedge,
+  WHEEL_WEDGES,
+  BET_CONFIGS,
+} from './game/math';
 import { PixiSlotEngine } from './game/PixiSlotEngine';
 import { soundEngine } from './game/AudioEngine';
 import { CurrencyBackdrop } from './components/CurrencyBackdrop';
@@ -12,6 +22,8 @@ import { WheelBonusOverlay } from './components/WheelBonusOverlay';
 import { AutoplayDrawer, AutoplayConfig } from './components/AutoplayDrawer';
 import { LoadingScreen } from './components/LoadingScreen';
 import { IntroRulesModal } from './components/IntroRulesModal';
+import { ProvablyFairModal } from './components/ProvablyFairModal';
+import { useStakeBridge } from './hooks/useStakeBridge';
 
 const formatStop = (s?: string) => (!s || s === 'BLANK' || s === '—' || s === '-' ? '-' : s);
 
@@ -20,9 +32,29 @@ type BootPhase = 'LOADING' | 'INTRO_RULES' | 'READY';
 export default function App() {
   const [bootPhase, setBootPhase] = useState<BootPhase>('LOADING');
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
+  const [isProvablyFairOpen, setIsProvablyFairOpen] = useState<boolean>(false);
   const [isEngineReady, setIsEngineReady] = useState<boolean>(true);
+
+  // Stake Session Bridge hook
+  const {
+    session,
+    currencySymbol,
+    formatCurrency,
+    postGameReady,
+    postRoundCompleted,
+    postBetChange,
+  } = useStakeBridge(
+    useCallback((externalBalance: number) => {
+      setBalanceCredits(externalBalance);
+    }, [])
+  );
+
+  // Atomic Spin State Machine ('IDLE' | 'AWAITING_RGS' | 'REEL_SPIN' | 'RED_SPIN_EVAL' | 'WHEEL_BONUS' | 'WIN_TICKER')
+  const [spinState, setSpinState] = useState<SpinState>('IDLE');
+  const spinStateRef = useRef<SpinState>('IDLE');
+
   // Credits-based meters (Dynamic Bet Credits based on selected denomination)
-  const [balanceCredits, setBalanceCredits] = useState<number>(5000);
+  const [balanceCredits, setBalanceCredits] = useState<number>(() => session.initialBalance || 5000);
   const [displayedWinCredits, setDisplayedWinCredits] = useState<number>(210);
   const [betDenom, setBetDenom] = useState<Denomination>(10);
   const betCredits = BET_CONFIGS[betDenom].bet; // 1, 10, 100, or 1,000 Credits
@@ -146,58 +178,74 @@ export default function App() {
   }, []);
 
   // Update idle handbook text when bet changes
-  const updateIdleHandbook = useCallback((denom: Denomination) => {
-    const currentBet = BET_CONFIGS[denom].bet;
-    const coinVal = BET_CONFIGS[denom].coinValue;
-    const exampleWin = Math.round(105 * coinVal);
-    setHandbookState({
-      mode: 'IDLE',
-      leftLine1: '$!#?',
-      leftLine2: 'Win What You See:',
-      leftValue: '[1 0 5]',
-      rightLine1: 'If you see 105,',
-      rightLine2: `you win $${exampleWin.toLocaleString()}! ($${currentBet} Bet)`,
-    });
-  }, []);
+  const updateIdleHandbook = useCallback(
+    (denom: Denomination, sym: string = currencySymbol) => {
+      const currentBet = BET_CONFIGS[denom].bet;
+      const coinVal = BET_CONFIGS[denom].coinValue;
+      const exampleWin = Math.round(105 * coinVal);
+      setHandbookState({
+        mode: 'IDLE',
+        leftLine1: '$!#?',
+        leftLine2: 'Win What You See:',
+        leftValue: '[1 0 5]',
+        rightLine1: 'If you see 105,',
+        rightLine2: `you win ${sym}${exampleWin.toLocaleString()}! (${sym}${currentBet} Bet)`,
+      });
+    },
+    [currencySymbol]
+  );
 
-  // Animate Win Ticker Counting Up (in Credits)
-  const animateWinTicker = useCallback((targetWin: number, currentTurbo: TurboMode = 'off') => {
-    if (targetWin <= 0) {
-      setDisplayedWinCredits(0);
-      return;
+  // Send GAME_READY to Stake frame when boot phase becomes READY
+  useEffect(() => {
+    if (bootPhase === 'READY') {
+      postGameReady();
     }
+  }, [bootPhase, postGameReady]);
 
-    const duration =
-      currentTurbo === 'instant'
-        ? 160
-        : currentTurbo === 'turbo'
-        ? Math.min(750, Math.max(250, targetWin * 3.5))
-        : Math.min(1800, Math.max(500, targetWin * 8));
-    const startTime = performance.now();
-    let stepCount = 0;
-
-    const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-      const current = Math.floor(targetWin * progress);
-      setDisplayedWinCredits(current);
-
-      if (Math.floor(progress * 15) > stepCount) {
-        stepCount = Math.floor(progress * 15);
-        soundEngine.playWinChime(stepCount);
+  // Animate Win Ticker Counting Up (in Credits) - Returns Promise so state machine lock awaits completion
+  const animateWinTicker = useCallback(
+    (targetWin: number, currentTurbo: TurboMode = 'off'): Promise<void> => {
+      if (targetWin <= 0) {
+        setDisplayedWinCredits(0);
+        return Promise.resolve();
       }
 
-      if (progress < 1.0) {
+      return new Promise<void>((resolve) => {
+        const duration =
+          currentTurbo === 'instant'
+            ? 160
+            : currentTurbo === 'turbo'
+            ? Math.min(750, Math.max(250, targetWin * 3.5))
+            : Math.min(1800, Math.max(500, targetWin * 8));
+        const startTime = performance.now();
+        let stepCount = 0;
+
+        const tick = (now: number) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1.0);
+          const current = Math.floor(targetWin * progress);
+          setDisplayedWinCredits(current);
+
+          if (Math.floor(progress * 15) > stepCount) {
+            stepCount = Math.floor(progress * 15);
+            soundEngine.playWinChime(stepCount);
+          }
+
+          if (progress < 1.0) {
+            requestAnimationFrame(tick);
+          } else {
+            setDisplayedWinCredits(targetWin);
+            resolve();
+          }
+        };
+
         requestAnimationFrame(tick);
-      } else {
-        setDisplayedWinCredits(targetWin);
-      }
-    };
+      });
+    },
+    []
+  );
 
-    requestAnimationFrame(tick);
-  }, []);
-
-  // Spin Action Handler
+  // Spin Action Handler with Strict Atomic SpinState Lockout Guard
   const handleSpin = useCallback(
     async (
       forceWheel?: boolean,
@@ -209,8 +257,10 @@ export default function App() {
       const isForcedRedSpin = forceRedSpin === true;
       const isForcedRespin = forceRespin === true;
       const isForcedNearMissWheel = forceNearMissWheel === true;
+
+      // ATOMIC LOCK GUARD: Strictly prevent duplicate spins, race conditions, and Spacebar spam
       if (
-        isSpinning ||
+        spinStateRef.current !== 'IDLE' ||
         activeWheelBonus ||
         balanceCredits < betCredits
       ) {
@@ -220,10 +270,14 @@ export default function App() {
         return;
       }
 
-      soundEngine.playButtonPress();
+      // Synchronously acquire atomic lock before any asynchronous dispatch
+      spinStateRef.current = 'AWAITING_RGS';
+      setSpinState('AWAITING_RGS');
       setIsSpinning(true);
       setIsRespinActive(false);
       setIsRedSpinActive(false);
+
+      soundEngine.playButtonPress();
 
       // Deduct bet Credits from balance
       const newDeductedBalance = Math.max(0, balanceCredits - betCredits);
@@ -240,7 +294,7 @@ export default function App() {
           leftLine2: 'Good Luck!',
           leftValue: '[ ? ? ? ]',
           rightLine1: '$!#? Payout',
-          rightLine2: `Bet: $${betCredits.toLocaleString()}`,
+          rightLine2: `Bet: ${currencySymbol}${betCredits.toLocaleString()}`,
         });
       } else {
         setHandbookState({
@@ -249,25 +303,37 @@ export default function App() {
           leftLine2: 'Good Luck!',
           leftValue: '[ ? ? ? ]',
           rightLine1: '$!#? Payout',
-          rightLine2: `Bet: $${betCredits.toLocaleString()}`,
+          rightLine2: `Bet: ${currencySymbol}${betCredits.toLocaleString()}`,
         });
       }
 
       // Generate outcome asynchronously from Stake RGS Math Model (or forced triggers for verification)
       let result: StakeRgsPayload;
-      if (isForcedNearMissWheel) {
-        result = await spinRound(betDenom, false, false, false, true);
-      } else if (isForcedWheel) {
-        result = await spinRound(betDenom, false, false, true, false);
-      } else if (isForcedRedSpin) {
-        result = await spinRound(betDenom, true, false, false, false);
-      } else if (isForcedRespin) {
-        result = await spinRound(betDenom, false, true, false, false);
-      } else {
-        result = await spinRound(betDenom);
+      try {
+        if (isForcedNearMissWheel) {
+          result = await spinRound(betDenom, false, false, false, true);
+        } else if (isForcedWheel) {
+          result = await spinRound(betDenom, false, false, true, false);
+        } else if (isForcedRedSpin) {
+          result = await spinRound(betDenom, true, false, false, false);
+        } else if (isForcedRespin) {
+          result = await spinRound(betDenom, false, true, false, false);
+        } else {
+          result = await spinRound(betDenom);
+        }
+      } catch (err) {
+        console.error('Stake RGS error:', err);
+        spinStateRef.current = 'IDLE';
+        setSpinState('IDLE');
+        setIsSpinning(false);
+        return;
       }
 
       activeSpinResultRef.current = result;
+
+      // Transition atomic lock to REEL_SPIN
+      spinStateRef.current = 'REEL_SPIN';
+      setSpinState('REEL_SPIN');
 
       // Execute animation in PixiSlotEngine (with active turboMode)
       if (engineRef.current) {
@@ -280,16 +346,22 @@ export default function App() {
       // Process final round outcome in Credits
       if (result.creditsWon > 0) {
         setBalanceCredits((prev) => prev + result.creditsWon);
-        animateWinTicker(result.creditsWon, turboMode);
+
+        // Transition atomic lock to WIN_TICKER
+        spinStateRef.current = 'WIN_TICKER';
+        setSpinState('WIN_TICKER');
 
         if (result.isWheel && result.wheelWedge) {
           setHandbookState({
             mode: 'WHEEL',
             leftLine1: 'WHEEL PRIZE!',
             leftLine2: 'Bonus Complete',
-            leftValue: `$${result.wheelWedge.credits}`,
-            rightLine1: `Won $${result.creditsWon}!`,
-            rightLine2: result.baseCredits > 0 ? `Reel ($${result.baseCredits}) + Wheel!` : 'Huge Bonus Win!',
+            leftValue: `${currencySymbol}${result.wheelWedge.credits}`,
+            rightLine1: `Won ${currencySymbol}${result.creditsWon}!`,
+            rightLine2:
+              result.baseCredits > 0
+                ? `Reel (${currencySymbol}${result.baseCredits}) + Wheel!`
+                : 'Huge Bonus Win!',
           });
         } else {
           const displayStops = result.stops.slice(0, 3).map(formatStop).join(' ');
@@ -302,14 +374,18 @@ export default function App() {
             leftLine1: 'You Landed:',
             leftLine2: '',
             leftValue: `[ ${displayStops} ]`,
-            rightLine1: `Won $${result.creditsWon}!`,
-            rightLine2: result.multiplier > 1
-              ? `(${result.multiplier}X Boosted!)`
-              : isBlankInterrupted
-              ? 'Reel 2 Blank Stopped Win'
-              : 'Great Win!',
+            rightLine1: `Won ${currencySymbol}${result.creditsWon}!`,
+            rightLine2:
+              result.multiplier > 1
+                ? `(${result.multiplier}X Boosted!)`
+                : isBlankInterrupted
+                ? 'Reel 2 Blank Stopped Win'
+                : 'Great Win!',
           });
         }
+
+        // Await the win ticker completion so buttons remain locked during tallying
+        await animateWinTicker(result.creditsWon, turboMode);
       } else {
         const displayStops = result.stops.slice(0, 3).map(formatStop).join(' ');
         const isBlankR1 = !result.stops[0] || result.stops[0] === 'BLANK';
@@ -323,6 +399,12 @@ export default function App() {
         });
       }
 
+      // Signal Stake Session Bridge iframe that the round has completed
+      postRoundCompleted(result, finalRoundBalance, betCredits);
+
+      // Release atomic state lock back to IDLE
+      spinStateRef.current = 'IDLE';
+      setSpinState('IDLE');
       setIsSpinning(false);
       setIsRespinActive(false);
       setIsRedSpinActive(false);
@@ -361,7 +443,7 @@ export default function App() {
         if (config.lossLimit !== null && config.lossLimit !== undefined) {
           const netLoss = autoplayStartBalanceRef.current - finalRoundBalance;
           if (netLoss >= config.lossLimit) {
-            handleStopAutoplay(`Loss limit of $${config.lossLimit.toLocaleString()} reached`);
+            handleStopAutoplay(`Loss limit of ${currencySymbol}${config.lossLimit.toLocaleString()} reached`);
             return;
           }
         }
@@ -370,7 +452,7 @@ export default function App() {
         if (config.singleWinLimit !== null && config.singleWinLimit !== undefined) {
           if (result.creditsWon >= config.singleWinLimit) {
             handleStopAutoplay(
-              `Single win limit of $${config.singleWinLimit.toLocaleString()} reached (Won $${result.creditsWon})`
+              `Single win limit of ${currencySymbol}${config.singleWinLimit.toLocaleString()} reached (Won ${currencySymbol}${result.creditsWon})`
             );
             return;
           }
@@ -402,7 +484,6 @@ export default function App() {
       }
     },
     [
-      isSpinning,
       activeWheelBonus,
       balanceCredits,
       betCredits,
@@ -410,6 +491,8 @@ export default function App() {
       animateWinTicker,
       turboMode,
       handleStopAutoplay,
+      currencySymbol,
+      postRoundCompleted,
     ]
   );
 
@@ -453,12 +536,13 @@ export default function App() {
   // Denomination Switcher
   const handleSelectDenom = useCallback(
     (newDenom: Denomination) => {
-      if (isSpinning || isAutoplayRunning) return;
+      if (spinStateRef.current !== 'IDLE' || isSpinning || isAutoplayRunning) return;
       soundEngine.playButtonPress();
       setBetDenom(newDenom);
+      postBetChange(BET_CONFIGS[newDenom].bet);
       updateIdleHandbook(newDenom);
     },
-    [isSpinning, isAutoplayRunning, updateIdleHandbook]
+    [isSpinning, isAutoplayRunning, updateIdleHandbook, postBetChange]
   );
 
   // Sound Toggle
@@ -474,6 +558,8 @@ export default function App() {
 
     const engine = new PixiSlotEngine({
       onNearMissPause: (initialStops) => {
+        spinStateRef.current = 'RED_SPIN_EVAL';
+        setSpinState('RED_SPIN_EVAL');
         setHandbookState({
           mode: 'NEAR_MISS',
           leftLine1: 'NEAR MISS!',
@@ -484,6 +570,8 @@ export default function App() {
         });
       },
       onRedSpinAlarm: () => {
+        spinStateRef.current = 'RED_SPIN_EVAL';
+        setSpinState('RED_SPIN_EVAL');
         setIsRedSpinActive(true);
         setHandbookState({
           mode: 'RED_SPIN',
@@ -534,7 +622,7 @@ export default function App() {
           leftLine1: 'RESPIN COMPLETE!',
           leftLine2: `${result.multiplier}X Boost!`,
           leftValue: `[ ${displayStops} ]`,
-          rightLine1: result.creditsWon > 0 ? `Won $${result.creditsWon}!` : 'Respin Complete',
+          rightLine1: result.creditsWon > 0 ? `Won ${currencySymbol}${result.creditsWon}!` : 'Respin Complete',
           rightLine2: result.creditsWon > 0 ? `${result.multiplier}X Multiplied Win!` : 'Try Again!',
         });
       },
@@ -545,10 +633,12 @@ export default function App() {
           leftLine2: 'Big Wheel',
           leftValue: 'PRIZE',
           rightLine1: 'Spinning the Wheel!',
-          rightLine2: 'Up to $5,000!',
+          rightLine2: `Up to ${currencySymbol}5,000!`,
         });
       },
       onWheelTrigger: (wedge) => {
+        spinStateRef.current = 'WHEEL_BONUS';
+        setSpinState('WHEEL_BONUS');
         return new Promise<void>((resolve) => {
           const currentResult = activeSpinResultRef.current;
           setActiveWheelBonus({
@@ -564,8 +654,8 @@ export default function App() {
           mode: 'WHEEL',
           leftLine1: 'WHEEL PRIZE!',
           leftLine2: 'Congratulations!',
-          leftValue: `$${wedge.credits}`,
-          rightLine1: `Won $${wedge.credits}!`,
+          leftValue: `${currencySymbol}${wedge.credits}`,
+          rightLine1: `Won ${currencySymbol}${wedge.credits}!`,
           rightLine2: `Huge Bonus Win!`,
         });
       },
@@ -635,7 +725,18 @@ export default function App() {
   // Keyboard Shortcuts (Space/Enter: Spin/Stop, A: Autoplay Drawer/Stop, W: Test Wheel, 1-4: Denominations, M: Mute, P: Paytable, B: Bet)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isSpinning) return;
+      // ATOMIC KEYBOARD LOCKOUT: Strictly block any spin or setting triggers during active spin pipeline
+      if (spinStateRef.current !== 'IDLE' || isSpinning) {
+        if (
+          autoplayRunningRef.current &&
+          (e.key === 'Escape' || e.code === 'Space' || e.code === 'Enter' || e.key.toLowerCase() === 'a')
+        ) {
+          e.preventDefault();
+          handleStopAutoplay('Manually stopped by player');
+        }
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (activeWheelBonus) return; // Allow overlay to handle its own key actions
 
@@ -724,13 +825,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* Section 3: Settings (11vh on mobile, 12.5vh on desktop - with Turbo, Autoplay, Stats, Rules, Sound) */}
+        {/* Section 3: Settings (11vh on mobile, 12.5vh on desktop - with Turbo, Autoplay, Provably Fair, Stats, Rules, Sound) */}
         <section className="h-[11vh] sm:h-[12vh] md:h-[12.5vh] w-full flex items-center justify-center px-2 sm:px-4 py-0.5 sm:py-1 relative z-10">
           <SettingsBar
             activeDenom={betDenom}
             isSpinning={isSpinning}
+            spinState={spinState}
             isMuted={isMuted}
             isMobile={isMobile}
+            currencySymbol={currencySymbol}
             turboMode={turboMode}
             isAutoplayRunning={isAutoplayRunning}
             autoplaySpinsRemaining={autoplaySpinsRemaining}
@@ -741,6 +844,7 @@ export default function App() {
             onToggleMute={handleToggleMute}
             onOpenRules={() => setIsRulesOpen(true)}
             onOpenStats={() => setIsStatsOpen(true)}
+            onOpenProvablyFair={() => setIsProvablyFairOpen(true)}
             onOpenBetModal={() => setIsBetModalOpen(true)}
           />
         </section>
@@ -752,6 +856,8 @@ export default function App() {
             winCredits={displayedWinCredits}
             betCredits={betCredits}
             isSpinning={isSpinning}
+            spinState={spinState}
+            currencySymbol={currencySymbol}
             isMobile={isMobile}
             isAutoplayRunning={isAutoplayRunning}
             autoplaySpinsRemaining={autoplaySpinsRemaining}
@@ -775,6 +881,7 @@ export default function App() {
       <BetModal
         isOpen={isBetModalOpen}
         activeBet={betDenom}
+        currencySymbol={currencySymbol}
         onSelectBet={handleSelectDenom}
         onClose={() => setIsBetModalOpen(false)}
       />
@@ -787,6 +894,15 @@ export default function App() {
         onTestRedSpin={() => handleSpin(false, true)}
         onTestRespin={() => handleSpin(false, false, true)}
         onTestNearMissWheel={() => handleSpin(false, false, false, true)}
+        onOpenProvablyFair={() => setIsProvablyFairOpen(true)}
+        currencySymbol={currencySymbol}
+      />
+
+      {/* Stake Engine Provably Fair Verifier Modal */}
+      <ProvablyFairModal
+        isOpen={isProvablyFairOpen}
+        onClose={() => setIsProvablyFairOpen(false)}
+        currencySymbol={currencySymbol}
       />
 
       {/* Full-Screen Wheel Bonus Overlay Scene */}

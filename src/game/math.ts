@@ -12,6 +12,17 @@ export type Denomination = 1 | 10 | 100 | 1000;
 
 export type TurboMode = 'off' | 'turbo' | 'instant';
 
+/**
+ * Atomic State Machine for Spin Lifecycle & Race Condition Lockout
+ */
+export type SpinState =
+  | 'IDLE'
+  | 'AWAITING_RGS'
+  | 'REEL_SPIN'
+  | 'RED_SPIN_EVAL'
+  | 'WHEEL_BONUS'
+  | 'WIN_TICKER';
+
 export interface BetConfig {
   bet: Denomination;
   coinValue: number; // Dollar per credit
@@ -386,8 +397,31 @@ export function getCurrentNonce(): number {
   return serverAuthoritativeNonce;
 }
 
+export interface RevealedSeedPair {
+  serverSeed: string;
+  serverSeedHash: string;
+  revealedAt: number;
+  finalNonce: number;
+}
+
+const revealedServerSeeds: RevealedSeedPair[] = [];
+
+export function getRevealedServerSeeds(): RevealedSeedPair[] {
+  return [...revealedServerSeeds];
+}
+
 export function rotateServerSeed(newSeed?: string): { oldSeed: string; newSeedHash: string } {
   const old = serverAuthoritativeServerSeed;
+  const oldHash = sha256(old);
+  const finalNonce = serverAuthoritativeNonce;
+
+  revealedServerSeeds.unshift({
+    serverSeed: old,
+    serverSeedHash: oldHash,
+    revealedAt: Date.now(),
+    finalNonce,
+  });
+
   serverAuthoritativeServerSeed = newSeed || sha256(`seed_${Date.now()}_${Math.random()}`);
   serverAuthoritativeNonce = 0;
   return {
@@ -646,6 +680,37 @@ export function exportLookupTableCli(size = 10000): {
     hitFrequency,
     sampleJson: JSON.stringify(table.slice(0, 5), null, 2),
   };
+}
+
+/**
+ * Offline CSV exporter: outputs static lookup table as indexed CSV
+ * Index -> [Multiplier, R1, R2, R3, R4, Event, Payout]
+ */
+export function exportLookupTableCsv(size = 10000, denomination: Denomination = 10): string {
+  const table = generateLookupTable(size, denomination);
+  const header = 'index,multiplier,r1,r2,r3,r4,credits_won,payout,event,initial_r1,initial_r2,initial_r3,initial_r4,wheel_wedge_idx,salvaged_reel\n';
+  const rows = table.map((e) => {
+    let eventName = 'NONE';
+    if (e.wheelTriggered) eventName = 'WHEEL_BONUS';
+    else if (e.respinTriggered) eventName = 'STAR_RESPIN';
+    else if (e.redSpinTriggered) eventName = 'RED_SPIN_SAVIOR';
+    else if (e.creditsWon > 0) eventName = 'BASE_WIN';
+
+    const r1 = e.stops[0];
+    const r2 = e.stops[1];
+    const r3 = e.stops[2];
+    const r4 = e.stops[3];
+    const ir1 = e.initialStops[0];
+    const ir2 = e.initialStops[1];
+    const ir3 = e.initialStops[2];
+    const ir4 = e.initialStops[3];
+    const wedgeIdx = e.wheelWedgeWon !== undefined ? e.wheelWedgeWon : '';
+    const salvaged = e.salvagedReel !== undefined ? e.salvagedReel : '';
+
+    return `${e.index},${e.multiplier},${r1},${r2},${r3},${r4},${e.creditsWon},${e.payout},${eventName},${ir1},${ir2},${ir3},${ir4},${wedgeIdx},${salvaged}`;
+  });
+
+  return header + rows.join('\n');
 }
 
 // ---------------------------------------------------------------------
@@ -909,6 +974,67 @@ export function evaluateRgsOutcome(
     salvaged_reel: redSpinTriggered ? 1 : undefined,
     initial_stops: initialStops,
     credits_won: creditsWon,
+  };
+}
+
+export interface ProvablyFairVerificationResult {
+  serverSeed: string;
+  serverSeedHash: string;
+  clientSeed: string;
+  nonce: number;
+  hmacSignature: string;
+  floats: number[];
+  stops: [string, string, string, string];
+  initialStops: [string, string, string, string];
+  creditsWon: number;
+  multiplier: number;
+  payout: number;
+  isWheel: boolean;
+  wheelWedgeWon?: number;
+  wheelWedgeCredits?: number;
+  isRespin: boolean;
+  respinMultiplier?: number;
+  redSpinTriggered: boolean;
+  salvagedSymbol?: string;
+  denomination: Denomination;
+  isValid: boolean;
+}
+
+/**
+ * Standard Stake Provably Fair Verifier
+ * Re-derives the exact outcome deterministically from serverSeed:clientSeed:nonce
+ */
+export function verifyProvablyFairRound(
+  serverSeed: string,
+  clientSeed: string,
+  nonce: number,
+  denomination: Denomination = 10
+): ProvablyFairVerificationResult {
+  const evaluated = evaluateRgsOutcome(serverSeed, clientSeed, nonce, denomination);
+  const hmacSig = hmacSha256(serverSeed, `${clientSeed}:${nonce}`);
+  const floats = hashToFloats(hmacSig);
+
+  return {
+    serverSeed,
+    serverSeedHash: sha256(serverSeed),
+    clientSeed,
+    nonce,
+    hmacSignature: hmacSig,
+    floats,
+    stops: evaluated.stops,
+    initialStops: evaluated.initialStops || evaluated.stops,
+    creditsWon: evaluated.creditsWon,
+    multiplier: evaluated.multiplier,
+    payout: evaluated.payout,
+    isWheel: evaluated.isWheel ?? evaluated.wheelTriggered,
+    wheelWedgeWon: evaluated.wheelWedgeWon,
+    wheelWedgeCredits: evaluated.wheelWedge?.credits,
+    isRespin: evaluated.isRespin ?? evaluated.respinTriggered,
+    respinMultiplier: evaluated.respinMultiplier,
+    redSpinTriggered: evaluated.redSpinTriggered,
+    salvagedSymbol: evaluated.salvagedReel !== undefined ? evaluated.stops[1] : undefined,
+    denomination,
+    isValid: true,
   };
 }
 

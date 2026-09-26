@@ -52,5 +52,9 @@
 - [x] Rebranded App from "WYSIWYG" to "$!#?" across metadata.json, index.html, LoadingScreen, Handbook, IntroRulesModal, PaytableModal, and math engine
 - [x] Restored Authentic $!#? Loading Screen Boot Sequence & Official Player's Handbook Intro Modal (`bootPhase` lifecycle, timeout race safety on asset preloading, `cash_machine_hide_intro_rules` persistence)
 - [x] Unified Rules Button to "OFFICIAL $!#? PLAYER'S HANDBOOK" & Deleted Legacy PaytableModal (`IntroRulesModal` with close button, backdrop click, Escape key, and deleted `src/components/PaytableModal.tsx`)
+- [x] Stake Engine Provably Fair Outcome Derivation & Verification (`verifyProvablyFairRound` in `src/game/math.ts`, open-source CLI verifier `scripts/verify_round.ts`, in-app `ProvablyFairModal.tsx` with active seed inspection, client seed customization, and historical seed rotation)
+- [x] Stake Engine Static Permutation Table Exporter (`scripts/generate_table.ts` with streaming batching, `Index -> [Multiplier, R1, R2, R3, R4, Event, Payout]`, tested and exported sample CSV `data/lookup_table_sample.csv` matching ~84.8% RTP & ~22.8% Hit Frequency)
+- [x] Atomic State Machine Lock & Spacebar/Turbo Spam Guard (`SpinState` atomic machine with `IDLE` -> `AWAITING_RGS` -> `REEL_SPIN` -> `RED_SPIN_EVAL` -> `WHEEL_BONUS` -> `WIN_TICKER` -> `IDLE`, synchronous `spinStateRef` locking, and `Promise`-based `animateWinTicker` preventing race conditions)
+- [x] Stake Iframe Session Bridge (`useStakeBridge.ts` parsing `token`, `currency`, `lang`, `mode`, `balance`, posting `GAME_READY`, `ROUND_COMPLETED`, and `BET_CHANGED` events, with multi-currency formatting)
 - [x] Build Verification (`compile_applet` & `lint_applet` passed)
 - [x] Memory Bank Final Sync

@@ -9,6 +9,8 @@ interface StatsModalProps {
   onTestRedSpin?: () => void;
   onTestRespin?: () => void;
   onTestNearMissWheel?: () => void;
+  onOpenProvablyFair?: () => void;
+  currencySymbol?: string;
 }
 
 export const StatsModal: React.FC<StatsModalProps> = ({
@@ -18,6 +20,8 @@ export const StatsModal: React.FC<StatsModalProps> = ({
   onTestRedSpin,
   onTestRespin,
   onTestNearMissWheel,
+  onOpenProvablyFair,
+  currencySymbol = '$',
 }) => {
   const [selectedDenom, setSelectedDenom] = useState<Denomination>(10);
   const [isRunning, setIsRunning] = useState(false);
@@ -281,6 +285,20 @@ export const StatsModal: React.FC<StatsModalProps> = ({
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#BC13FE] hover:bg-purple-500 text-white font-black text-xs cursor-pointer flex items-center justify-center gap-1.5 transition-colors shadow-[0_3px_10px_rgba(188,19,254,0.4)] font-comic"
             >
               ⚡ Test Star Respin
+            </button>
+          )}
+
+          {onOpenProvablyFair && (
+            <button
+              type="button"
+              disabled={isRunning}
+              onClick={() => {
+                onClose();
+                onOpenProvablyFair();
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs cursor-pointer flex items-center justify-center gap-1.5 transition-colors shadow-[0_3px_10px_rgba(6,182,212,0.4)] font-comic"
+            >
+              🛡️ Provably Fair Verifier
             </button>
           )}
         </div>

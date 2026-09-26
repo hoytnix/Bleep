@@ -1,12 +1,14 @@
 import React from 'react';
-import { Denomination, TurboMode } from '../game/math';
-import { Volume2, VolumeX, HelpCircle, BarChart3, Coins, Zap, FastForward, RotateCw, Square } from 'lucide-react';
+import { Denomination, TurboMode, SpinState } from '../game/math';
+import { Volume2, VolumeX, HelpCircle, BarChart3, Coins, Zap, FastForward, RotateCw, Square, ShieldCheck } from 'lucide-react';
 
 interface SettingsBarProps {
   activeDenom: Denomination;
   isSpinning: boolean;
+  spinState?: SpinState;
   isMuted: boolean;
   isMobile: boolean;
+  currencySymbol?: string;
   turboMode: TurboMode;
   isAutoplayRunning: boolean;
   autoplaySpinsRemaining: number;
@@ -17,13 +19,16 @@ interface SettingsBarProps {
   onToggleMute: () => void;
   onOpenRules: () => void;
   onOpenStats: () => void;
+  onOpenProvablyFair?: () => void;
   onOpenBetModal: () => void;
 }
 
 export const SettingsBar: React.FC<SettingsBarProps> = ({
   activeDenom,
   isSpinning,
+  spinState = 'IDLE',
   isMuted,
+  currencySymbol = '$',
   turboMode,
   isAutoplayRunning,
   autoplaySpinsRemaining,
@@ -33,33 +38,40 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   onToggleMute,
   onOpenRules,
   onOpenStats,
+  onOpenProvablyFair,
   onOpenBetModal,
 }) => {
+  const isLockedByState = spinState !== 'IDLE';
+  const isControlDisabled = isSpinning || isLockedByState;
+
   return (
     <div className="w-full max-w-5xl h-full flex items-center justify-between px-2 sm:px-4 md:px-6 relative select-none">
       {/* Left: Denomination Selector Button (Icon only on all resolutions) */}
       <div className="flex items-center">
         <button
           type="button"
-          disabled={isSpinning || isAutoplayRunning}
+          disabled={isControlDisabled || isAutoplayRunning}
           onClick={onOpenBetModal}
           className={`h-10 sm:h-11 md:h-12 px-2.5 sm:px-3 md:px-3.5 rounded-xl sm:rounded-2xl bg-black/80 hover:bg-black text-yellow-300 border-2 sm:border-3 border-yellow-500/50 hover:border-[#FFD700] flex items-center justify-center text-xs sm:text-sm md:text-base font-black font-comic cursor-pointer transition-all shadow-md active:scale-95 hover:shadow-[0_0_12px_rgba(255,215,0,0.3)] ${
-            isSpinning || isAutoplayRunning ? 'opacity-50 cursor-not-allowed' : ''
+            isControlDisabled || isAutoplayRunning ? 'opacity-50 cursor-not-allowed' : ''
           }`}
-          title={`Select Bet Denomination (Current: $${activeDenom.toLocaleString()} - Press B)`}
-          aria-label={`Select Bet Denomination ($${activeDenom.toLocaleString()})`}
+          title={`Select Bet Denomination (Current: ${currencySymbol}${activeDenom.toLocaleString()} - Press B)`}
+          aria-label={`Select Bet Denomination (${currencySymbol}${activeDenom.toLocaleString()})`}
         >
           <Coins className="w-4 h-4 sm:w-5 sm:h-5 md:w-5.5 md:h-5.5 text-yellow-400 shrink-0" />
         </button>
       </div>
 
-      {/* Right: Action Utility Buttons (Turbo, Autoplay, Stats, Rules, Sound) floating to the right */}
+      {/* Right: Action Utility Buttons (Turbo, Autoplay, Provably Fair, Stats, Rules, Sound) floating to the right */}
       <div className="ml-auto flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 font-comic">
         {/* Turbo Mode Button */}
         <button
           type="button"
+          disabled={isControlDisabled}
           onClick={onCycleTurbo}
           className={`h-10 sm:h-11 md:h-12 px-2 sm:px-3.5 md:px-4 rounded-xl sm:rounded-2xl bg-black/80 hover:bg-black border-2 sm:border-3 flex items-center justify-center gap-1 sm:gap-1.5 text-xs sm:text-sm md:text-base font-black font-comic cursor-pointer transition-all shadow-md active:scale-95 ${
+            isControlDisabled ? 'opacity-50 cursor-not-allowed' : ''
+          } ${
             turboMode === 'instant'
               ? 'text-[#39FF14] border-[#39FF14] shadow-[0_0_12px_rgba(57,255,20,0.35)] hover:shadow-[0_0_16px_rgba(57,255,20,0.5)]'
               : turboMode === 'turbo'
@@ -92,8 +104,11 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
         {/* Autoplay Button (Placed to the right of the Turbo button) */}
         <button
           type="button"
+          disabled={!isAutoplayRunning && isControlDisabled}
           onClick={isAutoplayRunning ? onStopAutoplay : onOpenAutoplay}
           className={`h-10 sm:h-11 md:h-12 px-2 sm:px-3.5 md:px-4 rounded-xl sm:rounded-2xl border-2 sm:border-3 flex items-center justify-center gap-1 sm:gap-1.5 text-xs sm:text-sm md:text-base font-black font-comic cursor-pointer transition-all shadow-md active:scale-95 ${
+            !isAutoplayRunning && isControlDisabled ? 'opacity-50 cursor-not-allowed' : ''
+          } ${
             isAutoplayRunning
               ? 'bg-red-600 hover:bg-red-500 text-white border-white animate-pulse shadow-[0_0_16px_rgba(239,68,68,0.7)]'
               : 'bg-black/80 hover:bg-black text-yellow-300 border-yellow-500/50 hover:border-[#FFD700] hover:shadow-[0_0_12px_rgba(255,215,0,0.3)]'
@@ -119,6 +134,20 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
             </>
           )}
         </button>
+
+        {/* Provably Fair Button */}
+        {onOpenProvablyFair && (
+          <button
+            type="button"
+            onClick={onOpenProvablyFair}
+            className="h-10 sm:h-11 md:h-12 px-2 sm:px-3 md:px-3.5 rounded-xl sm:rounded-2xl bg-black/80 hover:bg-black text-[#39FF14] border-2 sm:border-3 border-[#39FF14]/50 hover:border-[#39FF14] flex items-center justify-center gap-1.5 text-xs sm:text-sm md:text-base font-black font-comic cursor-pointer transition-all shadow-md active:scale-95 hover:shadow-[0_0_12px_rgba(57,255,20,0.35)]"
+            title="Stake Provably Fair Verifier"
+            aria-label="Provably Fair"
+          >
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 md:w-5.5 md:h-5.5 text-[#39FF14] shrink-0" />
+            <span className="hidden md:inline font-comic tracking-wider text-[11px] sm:text-xs">FAIR</span>
+          </button>
+        )}
 
         {/* Stats Button */}
         <button

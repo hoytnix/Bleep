@@ -5,6 +5,7 @@ import { Denomination, BET_CONFIGS } from '../game/math';
 interface BetModalProps {
   isOpen: boolean;
   activeBet: Denomination;
+  currencySymbol?: string;
   onSelectBet: (bet: Denomination) => void;
   onClose: () => void;
 }
@@ -12,6 +13,7 @@ interface BetModalProps {
 export const BetModal: React.FC<BetModalProps> = ({
   isOpen,
   activeBet,
+  currencySymbol = '$',
   onSelectBet,
   onClose,
 }) => {
@@ -86,11 +88,11 @@ export const BetModal: React.FC<BetModalProps> = ({
                         : 'bg-black/60 text-yellow-400 border-yellow-500/30'
                     }`}
                   >
-                    ${denom >= 1000 ? '1K' : denom}
+                    {currencySymbol}{denom >= 1000 ? '1K' : denom}
                   </div>
                   <div>
                     <span className="text-sm font-black text-white block font-comic">
-                      <span className="font-micr">${config.bet.toLocaleString()}</span> Wager
+                      <span className="font-micr">{currencySymbol}{config.bet.toLocaleString()}</span> Wager
                     </span>
                     <span className="text-xs text-slate-400 font-comic">
                       {tierDescriptions[denom]}
@@ -100,7 +102,7 @@ export const BetModal: React.FC<BetModalProps> = ({
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-yellow-400 font-micr">
-                    ${config.bet.toLocaleString()}
+                    {currencySymbol}{config.bet.toLocaleString()}
                   </span>
                   {isSelected && (
                     <div className="w-6 h-6 rounded-full bg-[#FFD700] flex items-center justify-center text-black">

@@ -273,18 +273,44 @@ The WYSIWYG Mechanical Stepper Slot Machine has been enhanced and stabilized:
       - Unified state in `App.tsx` (`isRulesOpen`), rendering `IntroRulesModal` for both boot splash and in-game inspection.
       - Confirmed clean builds with zero lint errors.
 
+39. Stake Engine RGS Certification Suite (4 Regulatory Items Implemented):
+    1. Provably Fair Verification Script & Seed Pair Verification:
+       - Implemented standard HMAC-SHA256 deterministic outcome derivation function (`verifyProvablyFairRound` in `src/game/math.ts`).
+       - Maps extracted cryptographic floats to Reel 1, 2, 3, 4 stops, Red-Spin near-miss evaluations, and Wheel wedge indexes.
+       - Built standalone CLI verification script (`scripts/verify_round.ts`) executable via `npx tsx scripts/verify_round.ts --serverSeed <hex> --clientSeed <str> --nonce <num> --denom <num>`.
+       - Built full in-app interactive `ProvablyFairModal.tsx` providing live Server Seed Hash, customizable Client Seed, Server Seed rotation with revealed past seed history, and an interactive outcome recalculation tool with HMAC matching checkmark.
+    2. Static Permutation Lookup Table (CSV / Binary):
+       - Built ultra-fast streaming CLI exporter `scripts/generate_table.ts` (`npm run generate:table`) generating indexed permutations (`Index -> [Multiplier, R1, R2, R3, R4, Event, Payout]`).
+       - Validated with batch streaming and audited statistics matching calibrated ~84.8% RTP and ~22.8% hit frequency.
+       - Exported sample 50,000-permutation table to `data/lookup_table_sample.csv`.
+    3. Spacebar / Turbo Spam Guard & Race Condition Handling:
+       - Created atomic state machine lock: `type SpinState = 'IDLE' | 'AWAITING_RGS' | 'REEL_SPIN' | 'RED_SPIN_EVAL' | 'WHEEL_BONUS' | 'WIN_TICKER'`.
+       - Synchronous `spinStateRef.current` lock prevents double-clicks, high-latency request queuing, and Spacebar hammering before the entire visual sequence settles.
+       - Refactored `animateWinTicker` to return a `Promise<void>`, guaranteeing the lock remains engaged across the count-up until returning to `'IDLE'`.
+       - Locked denomination adjustments, Bet modal toggles, and shortcut keys during active spin states.
+    4. Stake Session Bridge & URL Params:
+       - Created `src/hooks/useStakeBridge.ts` lightweight wrapper hook.
+       - Parses query params on load: `token`, `currency` (USDT, BTC, ETH, USD, EUR, etc.), `lang`, `mode` (`real` | `demo`), `balance`.
+       - Dispatches `window.parent.postMessage({ type: 'GAME_READY', ... }, '*')` upon boot completion.
+       - Streams `ROUND_COMPLETED` and `BET_CHANGED` events to parent frame.
+       - Automatically adapts currency symbol and formatting across all meters and modals.
+
 ## Implemented Architecture
+- `src/hooks/useStakeBridge.ts`: Stake iframe session bridge, query params parser, and postMessage event dispatcher.
+- `src/components/ProvablyFairModal.tsx`: Stake Provably Fair interactive modal with active seed inspector, client seed editor, server seed rotator, and historical round verifier.
+- `scripts/verify_round.ts`: Open-source CLI verification script for deterministic HMAC-SHA256 outcome re-derivation.
+- `scripts/generate_table.ts`: Streaming CLI script for generating static permutation lookup tables (`npm run generate:table`).
 - `src/components/LoadingScreen.tsx`: Retro high-contrast boot screen tracking font readiness, backdrop image preload, and stepper calibration.
 - `src/components/IntroRulesModal.tsx`: Comic handbook splash modal explaining 4 core rules with persistent "Don't show this again" state and audio unlock.
 - `src/components/AutoplayDrawer.tsx`: Regulatory configuration drawer with spin counts (10, 25, 50, 100), Stop on Bonus toggle, Loss Limits, and Single Win Limits.
-- `src/game/math.ts`: Deterministic Stake RGS outcome generator with calibrated stop weights (~84.5% RTP, ~21.4% Hit Frequency), fixed 10-credit model, concatenation rules, Monte Carlo simulator.
+- `src/game/math.ts`: Deterministic Stake RGS outcome generator with calibrated stop weights (~84.5% RTP, ~21.4% Hit Frequency), fixed 10-credit model, concatenation rules, Monte Carlo simulator, and `SpinState` atomic state machine.
 - `src/game/AudioEngine.ts`: Pure Web Audio API procedural synthesizer for mechanical stepper clicks, solenoid clunks, flapper ratchets, and jackpot fanfare.
 - `src/game/PixiSlotEngine.ts`: PixiJS v8 canvas application with dynamic responsive reel scaling, procedural MICR number textures, vector SVG colorful wheel and star symbol rendering, spring overshoot (`back.out`), Purple Respin event, and async `onWheelTrigger` hook.
 - `src/components/WheelBonusOverlay.tsx`: Full-screen immersive bonus wheel overlay with interactive spin button, auto-timers, physics wheel, flapper deflection, and win fanfare titled "DUMMY JACKPOT!".
 - `src/components/CurrencyBackdrop.tsx`: High-resolution background image backdrop (`/bg.jpeg`) with dynamic game state overlay shaders (purple respin and crimson red-spin flashes) and subtle depth vignette.
 - `src/components/Handbook.tsx`: Reactive open cartoon handbook displaying dynamic win math in Credits, filling 25vh.
-- `src/components/SettingsBar.tsx`: Dedicated 25vh control shelf with Bet Level modal launcher on left and Stats, Rules, and Sound buttons floating to the right.
-- `src/components/CreditsBar.tsx`: Dedicated 25vh console with BALANCE, WIN, BET pill meters and prominent circular Spin button centered on the right.
-- `src/components/BetModal.tsx`: Modal for choosing Bet Denominations ($1, $10, $100, $1,000).
-- `src/components/PaytableModal.tsx` & `src/components/StatsModal.tsx`: Fun, energetic rules modal (mentioning ~85.0% RTP) and real-time Monte Carlo verification drawer with direct Wheel Bonus test trigger.
-- `src/App.tsx`: Central coordinator with ResizeObserver canvas auto-scaling, keyboard navigation (Space/Enter, W, 1-4, B, M, P), full-screen wheel bonus session lifecycle, and credit balance tracking.
+- `src/components/SettingsBar.tsx`: Dedicated 25vh control shelf with Bet Level modal launcher on left, Turbo, Autoplay, Provably Fair, Stats, Rules, and Sound buttons floating to the right.
+- `src/components/CreditsBar.tsx`: Dedicated 25vh console with BALANCE, WIN, BET pill meters and prominent circular Spin button centered on the right with atomic SpinState lockout.
+- `src/components/BetModal.tsx`: Modal for choosing Bet Denominations ($1, $10, $100, $1,000) with dynamic currency symbol.
+- `src/components/StatsModal.tsx`: Real-time Monte Carlo verification drawer with direct Wheel Bonus test trigger, savior test triggers, and Provably Fair launcher.
+- `src/App.tsx`: Central coordinator with atomic `SpinState` state machine, Stake session bridge integration, ResizeObserver canvas auto-scaling, keyboard navigation (Space/Enter, W, 1-4, B, M, P, T, A), and full-screen wheel bonus session lifecycle.
