@@ -3,7 +3,7 @@
 > Complete technical architecture, mathematical model, Stake Engine RGS bridge specification, and Provably Fair implementation for $!#? Cash Machine Slot.
 
 ## 1. System Overview
-$!#? Cash Machine (repository `hoytnix/Bleep`) is an open-source, high-performance web casino game simulation written in TypeScript, React 19, and Pixi.js v8. The game is engineered to replicate the mechanical stepping reels of high-denomination stepper slot cabinets found on Las Vegas casino floors, specifically Everi's Cash Machine series.
+$!#? Cash Machine (repository `hoytnix/Bleep`), produced by TehWiz Productions (https://tehwiz.com), is an open-source, high-performance web casino game simulation written in TypeScript, React 19, and Pixi.js v8. The game is engineered to replicate the mechanical stepping reels of high-denomination stepper slot cabinets found on Las Vegas casino floors, specifically Everi's Cash Machine series.
 
 ## 2. Math & Reel Strip Specifications
 The slot features 3 stepper reels with numerical values and blank spacers.

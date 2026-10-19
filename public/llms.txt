@@ -7,6 +7,7 @@
 - **Alternate Names**: Bleep Slot, $!#? Stepper, Cash Machine Stepper
 - **Live Demo / Web App**: https://hoytnix.github.io/Bleep/
 - **Source Code**: https://github.com/hoytnix/Bleep
+- **Producer / Organization**: TehWiz Productions (https://tehwiz.com)
 - **License**: MIT
 - **Category**: Casino Slot Machine Simulation / Web Game
 
