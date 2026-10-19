@@ -1,0 +1,43 @@
+# robots.txt for $!#? Cash Machine Slot
+# https://www.robotstxt.org/robotstxt.html
+
+User-agent: *
+Allow: /
+
+# LLM and AI Crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+# Sitemaps & Structured Data for Search Engines & LLMs
+Sitemap: https://hoytnix.github.io/Bleep/sitemap.xml
+
+# LLM Context Specifications (see https://llmstxt.org/)
+# llms.txt: https://hoytnix.github.io/Bleep/llms.txt
+# llms-full.txt: https://hoytnix.github.io/Bleep/llms-full.txt

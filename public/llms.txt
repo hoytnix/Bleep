@@ -1,0 +1,35 @@
+# $!#? Cash Machine Slot
+
+> $!#? Cash Machine (Bleep) is a high-fidelity mechanical stepper casino slot game simulation built with React 19, Pixi.js v8, Tailwind CSS, and Motion. It faithfully replicates classic "win-what-you-see" mechanical number reels inspired by Everi Cash Machine and modern Stake Engine math models.
+
+## Overview
+- **Game Title**: $!#? Cash Machine Slot
+- **Alternate Names**: Bleep Slot, $!#? Stepper, Cash Machine Stepper
+- **Live Demo / Web App**: https://hoytnix.github.io/Bleep/
+- **Source Code**: https://github.com/hoytnix/Bleep
+- **License**: MIT
+- **Category**: Casino Slot Machine Simulation / Web Game
+
+## Core Mechanics & Mathematics
+- **Win-What-You-See Payouts**: Rather than traditional matching symbols across paylines, numbers appearing on active reels directly spell out the credit win value (e.g., `[10]` `[0]` `[0]` = 1,000 Credits; `[1]` `[0]` `[5]` = 105 Credits; `[5]` `[BLANK]` `[BLANK]` = 5 Credits).
+- **Denominations & Active Reels**:
+  - `1 Credit`: Center Reel 2 only (maximum single-reel hit: 10 credits).
+  - `10 Credits`: Reels 1 & 2 active (maximum 2-reel hit: 105 credits).
+  - `100 Credits`: All 3 Reels active (1, 2, and 3), enabling 3-digit combination payouts up to 10,500 credits.
+  - `1,000 Credits (High Roller)`: Full 3-reel high-stakes activation with boosted bonus frequency.
+- **Red Spin Feature**: Random respin triggered on non-winning or partial spins, reversing reel momentum for a second-chance payout.
+- **Wheel Bonus**: Dedicated bonus event featuring multiplier wedges, direct credits, and jackpot segments.
+- **Provably Fair Model**: Deterministic outcome generation using server seed SHA-256 hash commitments, client seeds, and incrementing spin nonces.
+
+## Technology Stack
+- **Frontend Framework**: React 19 with TypeScript
+- **Rendering & Animation**: Pixi.js v8 WebGL/WebGPU 60fps canvas engine for authentic mechanical stepper reel inertia, blur, and bounce
+- **Styling**: Tailwind CSS v4 with glassmorphism, responsive casino cabinet design, and vintage banknote textures
+- **UI Motion**: Motion (Framer Motion v12) for modal dialogs, drawers, and overlay transitions
+- **Build System**: Vite 8 with pnpm package management
+- **Deployment**: GitHub Pages via GitHub Actions
+
+## Documentation Links
+- [Detailed Technical Specifications & API Bridge](https://hoytnix.github.io/Bleep/llms-full.txt): Complete Stake RGS message payload contracts, reel stop tables, and math verification algorithms.
+- [GitHub Repository](https://github.com/hoytnix/Bleep): Issue tracker, pull requests, and source tree.
+- [Sitemap](https://hoytnix.github.io/Bleep/sitemap.xml): XML sitemap for search crawlers.

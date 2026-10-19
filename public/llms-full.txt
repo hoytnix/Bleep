@@ -1,0 +1,56 @@
+# $!#? Cash Machine Slot - Full Technical Reference
+
+> Complete technical architecture, mathematical model, Stake Engine RGS bridge specification, and Provably Fair implementation for $!#? Cash Machine Slot.
+
+## 1. System Overview
+$!#? Cash Machine (repository `hoytnix/Bleep`) is an open-source, high-performance web casino game simulation written in TypeScript, React 19, and Pixi.js v8. The game is engineered to replicate the mechanical stepping reels of high-denomination stepper slot cabinets found on Las Vegas casino floors, specifically Everi's Cash Machine series.
+
+## 2. Math & Reel Strip Specifications
+The slot features 3 stepper reels with numerical values and blank spacers.
+
+### Reel Symbol Strips
+- **Reel 1 (Hundreds / Tens)**: Contains blank stops, `1`, `2`, `5`, and `10` stops.
+- **Reel 2 (Tens / Singles)**: Contains blank stops, `0`, `5`, and `00` stops.
+- **Reel 3 (Singles / Boosts)**: Contains blank stops, `0`, and `5` stops.
+
+### Win Evaluation Logic
+Payouts are evaluated as a direct concatenative integer string from left to right across active reels:
+1. Blank stops contribute nothing (`""`).
+2. Digits are read left-to-right across active reels.
+3. If the parsed string forms a valid numeric amount > 0, the player wins that exact credit quantity.
+4. Red Spin feature can trigger when a partial or teaser symbol lands, triggering an authentic backward mechanical respin to lock in a winning combination.
+
+### Bet Configurations
+| Denomination | Bet (Credits) | Active Reels | Max Single Line Pay |
+|---|---|---|---|
+| 1 Credit | 1 | Reel 2 | 10 Credits |
+| 10 Credits | 10 | Reels 1 & 2 | 105 Credits |
+| 100 Credits | 100 | Reels 1, 2 & 3 | 10,500 Credits |
+| 1,000 Credits | 1,000 | Reels 1, 2 & 3 (Boosted) | 10,500 Credits + Jackpot |
+
+## 3. Provably Fair Verification
+The game includes a built-in cryptographic Provably Fair verification modal:
+- **Server Seed**: Kept secret until rotation, hashed with SHA-256 and committed publicly before the round.
+- **Client Seed**: Configured by the player or provided by the Stake session host.
+- **Nonce**: Incremental spin counter ensuring every round produces a unique, non-repeatable hash.
+- **Derivation**: `HMAC-SHA256(server_seed, client_seed + ":" + nonce)` produces deterministic pseudo-random bytes mapping directly to reel stop indices.
+
+## 4. Stake Session Bridge (useStakeBridge)
+The frontend communicates bidirectionally via `window.postMessage` with the Stake RGS / Stake Engine host iframe:
+- Outgoing events:
+  - `ready`: Game assets loaded and Pixi engine initialized.
+  - `round_completed`: Spin state settled, credit payout committed, next bet enabled.
+  - `bet_change`: Denomination updated.
+- Incoming events:
+  - `init_session`: Sets initial credit balance, player currency symbol (`$`, `€`, `₿`, etc.), and session parameters.
+  - `update_balance`: External balance adjustments.
+
+## 5. Web Assets & File Layout
+- `public/cover.png` - 1376x768 cover image for OpenGraph and JSON-LD schema metadata.
+- `public/cover.jpg` - JPEG format cover image.
+- `public/GnuMICR.ttf` - Embedded E-13B MICR banking font for digital number styling.
+- `public/robots.txt` - Search engine crawler and AI crawler directives.
+- `public/llms.txt` - LLM summary specification (llmstxt.org).
+- `public/llms-full.txt` - Full technical and math documentation (this document).
+- `public/sitemap.xml` - XML sitemap.
+- `public/404.html` - SPA routing fallback for GitHub Pages.
